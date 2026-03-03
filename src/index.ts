@@ -9,7 +9,7 @@ import {
   RGBA,
 } from "@opentui/core"
 
-import { conclave, single } from "./ai"
+import { conclave, single, type Message } from "./ai"
 import { CONCLAVE_MODELS } from "./config"
 
 const COLORS = {
@@ -46,6 +46,7 @@ async function main() {
   let modeIndex = 0
   let singleModelIndex = 0
   let processing = false
+  const history: Message[] = []
 
   const root = new BoxRenderable(renderer, {
     id: "root",
@@ -186,6 +187,7 @@ async function main() {
     if (!question || processing) return
 
     processing = true
+    history.push({ role: "user", content: question })
 
     const userMsg = new BoxRenderable(renderer, { id: nextId("q"), ...MSG_PADDING })
     userMsg.add(
@@ -220,12 +222,13 @@ async function main() {
       let answer: string
 
       if (mode === "conclave") {
-        answer = await handleConclave(question, responseBox, thinkingText, dotsAnim)
+        answer = await handleConclave(responseBox, thinkingText, dotsAnim)
       } else {
-        answer = await single(mode, question)
+        answer = await single(mode, history)
         clearInterval(dotsAnim)
       }
 
+      history.push({ role: "assistant", content: answer })
       renderer.dropLive()
       responseBox.remove(thinkingText.id)
       responseBox.add(
@@ -254,7 +257,6 @@ async function main() {
   }
 
   async function handleConclave(
-    question: string,
     responseBox: BoxRenderable,
     thinkingText: TextRenderable,
     dotsAnim: ReturnType<typeof setInterval>,
@@ -291,7 +293,7 @@ async function main() {
     deliberationBox.add(chairmanStatus)
     responseBox.add(deliberationBox)
 
-    return conclave(question, {
+    return conclave(history, {
       onModelComplete: (modelId) => {
         const t = statusMap.get(modelId)
         if (t) {
