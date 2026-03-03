@@ -20,6 +20,15 @@ const COLORS = {
 }
 
 const MSG_PADDING = { paddingLeft: 2, paddingRight: 3 }
+const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+
+function formatModelName(modelId: string): string {
+  const slash = modelId.indexOf("/")
+  if (slash === -1) return modelId
+  const provider = modelId.slice(0, slash)
+  const model = modelId.slice(slash + 1)
+  return `${provider.charAt(0).toUpperCase()}${provider.slice(1)} - ${model}`
+}
 
 const markdownStyle = SyntaxStyle.fromStyles({
   "markup.heading": { fg: RGBA.fromHex(COLORS.text), bold: true },
@@ -159,7 +168,7 @@ async function main() {
     } else {
       modeName.content = "Single"
       modeSwitch.content = " (shift+tab to switch)"
-      modelInfo.content = ` · ${CONCLAVE_MODELS[singleModelIndex]!}`
+      modelInfo.content = ` · ${formatModelName(CONCLAVE_MODELS[singleModelIndex]!)}`
       modelCycle.content = " (tab to cycle)"
     }
   }
@@ -173,12 +182,16 @@ async function main() {
     scrollBox.insertBefore(renderable, spacer)
   }
 
-  function animateDots(text: TextRenderable): ReturnType<typeof setInterval> {
-    let dots = 0
+  function animateSpinner(
+    text: TextRenderable,
+    label: string,
+    prefix = "",
+  ): ReturnType<typeof setInterval> {
+    let frame = 0
     return setInterval(() => {
-      dots = (dots + 1) % 4
-      text.content = "Thinking" + ".".repeat(dots || 1)
-    }, 400)
+      frame = (frame + 1) % SPINNER.length
+      text.content = `${prefix}${label} ${SPINNER[frame]}`
+    }, 80)
   }
 
   async function handleSubmit() {
@@ -205,27 +218,28 @@ async function main() {
       ...MSG_PADDING,
     })
 
+    const mode = currentMode()
+    const thinkingLabel = mode === "conclave" ? "Thinking" : formatModelName(mode)
     const thinkingText = new TextRenderable(renderer, {
       id: nextId("think"),
-      content: "Thinking.",
-      fg: COLORS.dimmer,
+      content: `${thinkingLabel} ${SPINNER[0]}`,
+      fg: COLORS.dim,
     })
 
     responseBox.add(thinkingText)
     addMessage(responseBox)
 
-    const dotsAnim = animateDots(thinkingText)
+    const spinnerAnim = animateSpinner(thinkingText, thinkingLabel)
     renderer.requestLive()
 
     try {
-      const mode = currentMode()
       let answer: string
 
       if (mode === "conclave") {
-        answer = await handleConclave(responseBox, thinkingText, dotsAnim)
+        answer = await handleConclave(responseBox, thinkingText, spinnerAnim)
       } else {
         answer = await single(mode, history)
-        clearInterval(dotsAnim)
+        clearInterval(spinnerAnim)
       }
 
       history.push({ role: "assistant", content: answer })
@@ -240,7 +254,7 @@ async function main() {
         }),
       )
     } catch (error) {
-      clearInterval(dotsAnim)
+      clearInterval(spinnerAnim)
       renderer.dropLive()
       responseBox.remove(thinkingText.id)
       responseBox.add(
@@ -275,40 +289,54 @@ async function main() {
     })
 
     const statusMap = new Map<string, TextRenderable>()
+    const animMap = new Map<string, ReturnType<typeof setInterval>>()
+
     for (const modelId of CONCLAVE_MODELS) {
+      const label = formatModelName(modelId)
       const t = new TextRenderable(renderer, {
         id: nextId("ms"),
-        content: `  ${modelId}`,
-        fg: COLORS.dimmer,
+        content: `  ${label} ${SPINNER[0]}`,
+        fg: COLORS.dim,
       })
       statusMap.set(modelId, t)
+      animMap.set(modelId, animateSpinner(t, label, "  "))
       deliberationBox.add(t)
     }
 
+    const chairmanLabel = "Chairman"
     const chairmanStatus = new TextRenderable(renderer, {
       id: nextId("cs"),
-      content: "  chairman",
+      content: `  ${chairmanLabel}`,
       fg: COLORS.dimmer,
     })
     deliberationBox.add(chairmanStatus)
     responseBox.add(deliberationBox)
 
-    return conclave(history, {
-      onModelComplete: (modelId) => {
-        const t = statusMap.get(modelId)
-        if (t) {
-          t.content = `  ${modelId} ✓`
-          t.fg = COLORS.dim
-        }
-      },
-      onChairmanStart: () => {
-        chairmanStatus.content = "  chairman synthesizing"
-      },
-      onChairmanComplete: () => {
-        chairmanStatus.content = "  chairman ✓"
-        chairmanStatus.fg = COLORS.dim
-      },
-    })
+    try {
+      return await conclave(history, {
+        onModelComplete: (modelId) => {
+          const anim = animMap.get(modelId)
+          if (anim) clearInterval(anim)
+          const t = statusMap.get(modelId)
+          if (t) {
+            t.content = `  ${formatModelName(modelId)} ✓`
+            t.fg = COLORS.dim
+          }
+        },
+        onChairmanStart: () => {
+          chairmanStatus.fg = COLORS.dim
+          animMap.set("chairman", animateSpinner(chairmanStatus, chairmanLabel, "  "))
+        },
+        onChairmanComplete: () => {
+          const anim = animMap.get("chairman")
+          if (anim) clearInterval(anim)
+          chairmanStatus.content = `  ${chairmanLabel} ✓`
+          chairmanStatus.fg = COLORS.dim
+        },
+      })
+    } finally {
+      for (const anim of animMap.values()) clearInterval(anim)
+    }
   }
 }
 
