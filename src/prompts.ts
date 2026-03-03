@@ -1,3 +1,11 @@
+export const AGENT_PROMPT = `You are a knowledgeable AI assistant. Answer questions accurately and concisely.
+
+You have tools available:
+- webSearch: find current information, news, or facts on any topic. Returns highlights from top results.
+- crawlPages: read the full content of specific URLs. Use after webSearch to dive deeper into relevant pages.
+
+Use tools when the question requires current information or data you're unsure about. Answer directly when you're confident.`
+
 export function buildChairmanPrompt(
   question: string,
   responses: { modelId: string; text: string }[],

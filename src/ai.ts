@@ -1,9 +1,10 @@
 import type { ModelMessage } from "@ai-sdk/provider-utils"
-import { generateText } from "ai"
+import { generateText, stepCountIs } from "ai"
 
-import { CHAIRMAN_MODEL, CONCLAVE_MODELS } from "./config"
+import { CHAIRMAN_MODEL, CONCLAVE_MODELS, MAX_AGENT_STEPS } from "./config"
 import { openrouter } from "./openrouter"
-import { buildChairmanPrompt } from "./prompts"
+import { AGENT_PROMPT, buildChairmanPrompt } from "./prompts"
+import * as tools from "./tools"
 
 export type Message = Extract<ModelMessage, { role: "user" | "assistant" }>
 
@@ -16,7 +17,10 @@ export interface ConclaveCallbacks {
 export async function single(modelId: string, messages: Message[]): Promise<string> {
   const { text } = await generateText({
     model: openrouter(modelId),
+    system: AGENT_PROMPT,
     messages,
+    tools,
+    stopWhen: stepCountIs(MAX_AGENT_STEPS),
   })
   return text
 }
