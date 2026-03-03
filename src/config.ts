@@ -6,4 +6,4 @@ export const CONCLAVE_MODELS = [
 
 export const CHAIRMAN_MODEL = "google/gemini-3.1-pro-preview"
 
-export const MAX_AGENT_STEPS = 10
+export const MAX_AGENT_STEPS = 25
