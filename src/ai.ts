@@ -3,18 +3,9 @@ import { stepCountIs } from "@openrouter/sdk"
 import { config } from "./config"
 import { openrouter } from "./openrouter"
 import { AGENT_PROMPT, buildChairmanPrompt } from "./prompts"
-import * as tools from "./tools"
+import { getEnabledTools } from "./tools"
 
 const MAX_AGENT_STEPS = 25
-
-function resolveEnabledTools() {
-  if (!process.env.EXA_API_KEY) return []
-
-  return [
-    ...(config.webSearch ? [tools.webSearch, tools.crawlPages] : []),
-    ...(config.deepResearch ? [tools.deepResearch] : []),
-  ]
-}
 
 export interface Message {
   role: "user" | "assistant"
@@ -28,9 +19,11 @@ export interface ConclaveCallbacks {
 }
 
 export async function single(modelId: string, messages: Message[]): Promise<string> {
-  const enabledTools = resolveEnabledTools()
+  const enabledTools = getEnabledTools()
+  const sessionId = crypto.randomUUID()
   const result = openrouter.callModel({
     model: modelId,
+    sessionId,
     instructions: AGENT_PROMPT,
     input: messages,
     tools: enabledTools,

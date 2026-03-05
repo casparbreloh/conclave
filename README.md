@@ -18,5 +18,6 @@ Runtime config lives at the repo root in `config.json`.
 
 - `models`: participating model IDs
 - `chairmanModel`: model used for synthesis
+- `sequentialThinking`: enable/disable the native sequential thinking tool
 - `webSearch`: enable/disable `webSearch` + `crawlPages`
 - `deepResearch`: enable/disable Exa Deep tool

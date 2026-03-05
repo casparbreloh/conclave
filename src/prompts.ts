@@ -1,44 +1,8 @@
-import { config } from "./config"
+import { getEnabledToolLines } from "./tools"
 
-const hasExaApiKey = Boolean(process.env.EXA_API_KEY)
-
-function buildToolSection(): string {
-  const lines: string[] = []
-
-  if (hasExaApiKey && config.webSearch) {
-    lines.push(
-      "- webSearch: find current information, news, or facts. Start here for web grounding.",
-    )
-    lines.push("- crawlPages: read full page content for URLs you already identified as relevant.")
-  }
-
-  if (hasExaApiKey && config.deepResearch) {
-    lines.push(
-      "- deepResearch: use Exa Deep only for complex, multi-part research that needs stronger synthesis.",
-    )
-  }
-
-  return lines.join("\n")
-}
-
-function buildToolPolicySection(): string {
-  const lines = ["- Use tools when the question requires current or uncertain information."]
-
-  if (hasExaApiKey && config.webSearch) {
-    lines.push("- Prefer webSearch + crawlPages for normal lookups.")
-  }
-
-  if (hasExaApiKey && config.deepResearch) {
-    lines.push(
-      "- Use deepResearch only when standard search/crawl is insufficient for complex synthesis.",
-    )
-  }
-
-  lines.push("- Keep tool usage efficient: do at most 10 tool calls for a single user request.")
-
-  lines.push(
-    "- If you already know the answer confidently and it is not time-sensitive, answer directly.",
-  )
+function buildToolsPromptSection(): string {
+  const lines = getEnabledToolLines()
+  if (lines.length === 0) return "- No tools enabled."
 
   return lines.join("\n")
 }
@@ -46,10 +10,12 @@ function buildToolPolicySection(): string {
 export const AGENT_PROMPT = `You are a knowledgeable AI assistant. Answer questions accurately and concisely.
 
 You have tools available:
-${buildToolSection()}
+${buildToolsPromptSection()}
 
 Tool policy:
-${buildToolPolicySection()}`
+- Use tools when the question requires current or uncertain information.
+- Keep tool usage efficient: do at most 10 tool calls for a single user request.
+- If you already know the answer confidently and it is not time-sensitive, answer directly.`
 
 export function buildChairmanPrompt(
   question: string,
