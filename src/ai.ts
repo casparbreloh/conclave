@@ -1,9 +1,20 @@
 import { stepCountIs } from "@openrouter/sdk"
 
-import { CHAIRMAN_MODEL, CONCLAVE_MODELS, MAX_AGENT_STEPS } from "./config"
+import { config } from "./config"
 import { openrouter } from "./openrouter"
 import { AGENT_PROMPT, buildChairmanPrompt } from "./prompts"
 import * as tools from "./tools"
+
+const MAX_AGENT_STEPS = 25
+
+function resolveEnabledTools() {
+  if (!process.env.EXA_API_KEY) return []
+
+  return [
+    ...(config.webSearch ? [tools.webSearch, tools.crawlPages] : []),
+    ...(config.deepResearch ? [tools.deepResearch] : []),
+  ]
+}
 
 export interface Message {
   role: "user" | "assistant"
@@ -17,11 +28,12 @@ export interface ConclaveCallbacks {
 }
 
 export async function single(modelId: string, messages: Message[]): Promise<string> {
+  const enabledTools = resolveEnabledTools()
   const result = openrouter.callModel({
     model: modelId,
     instructions: AGENT_PROMPT,
     input: messages,
-    tools: [tools.webSearch, tools.crawlPages],
+    tools: enabledTools,
     stopWhen: stepCountIs(MAX_AGENT_STEPS),
   })
   return result.getText()
@@ -29,7 +41,7 @@ export async function single(modelId: string, messages: Message[]): Promise<stri
 
 export async function conclave(messages: Message[], callbacks: ConclaveCallbacks): Promise<string> {
   const responses = await Promise.all(
-    CONCLAVE_MODELS.map(async (modelId) => {
+    config.models.map(async (modelId) => {
       const text = await single(modelId, messages)
       callbacks.onModelComplete(modelId)
       return { modelId, text }
@@ -40,7 +52,7 @@ export async function conclave(messages: Message[], callbacks: ConclaveCallbacks
 
   const question = messages.findLast((m) => m.role === "user")?.content ?? ""
   const result = openrouter.callModel({
-    model: CHAIRMAN_MODEL,
+    model: config.chairmanModel,
     input: buildChairmanPrompt(question, responses),
   })
 

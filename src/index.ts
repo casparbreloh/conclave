@@ -10,7 +10,7 @@ import {
 } from "@opentui/core"
 
 import { conclave, single, type Message } from "./ai"
-import { CONCLAVE_MODELS } from "./config"
+import { config } from "./config"
 
 const COLORS = {
   text: "#e6edf3",
@@ -115,7 +115,7 @@ async function main() {
       if (processing) return
       if (key.name === "tab" && !key.shift) {
         if (modeIndex === 1) {
-          singleModelIndex = (singleModelIndex + 1) % CONCLAVE_MODELS.length
+          singleModelIndex = (singleModelIndex + 1) % config.models.length
           updateStatusBar()
         }
       } else if (key.name === "tab" && key.shift) {
@@ -168,14 +168,14 @@ async function main() {
     } else {
       modeName.content = "Single"
       modeSwitch.content = " (shift+tab to switch)"
-      modelInfo.content = ` · ${formatModelName(CONCLAVE_MODELS[singleModelIndex]!)}`
+      modelInfo.content = ` · ${formatModelName(config.models[singleModelIndex]!)}`
       modelCycle.content = " (tab to cycle)"
     }
   }
 
   function currentMode(): string {
     if (modeIndex === 0) return "conclave"
-    return CONCLAVE_MODELS[singleModelIndex]!
+    return config.models[singleModelIndex]!
   }
 
   function addMessage(renderable: BoxRenderable | TextRenderable | MarkdownRenderable) {
@@ -291,7 +291,7 @@ async function main() {
     const statusMap = new Map<string, TextRenderable>()
     const animMap = new Map<string, ReturnType<typeof setInterval>>()
 
-    for (const modelId of CONCLAVE_MODELS) {
+    for (const modelId of config.models) {
       const label = formatModelName(modelId)
       const t = new TextRenderable(renderer, {
         id: nextId("ms"),

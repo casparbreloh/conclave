@@ -1,0 +1,6 @@
+{
+  "models": ["google/gemini-3.1-pro-preview", "openai/gpt-5.4", "anthropic/claude-opus-4.6"],
+  "chairmanModel": "google/gemini-3.1-pro-preview",
+  "webSearch": true,
+  "deepResearch": true
+}
