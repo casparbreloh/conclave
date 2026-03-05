@@ -9,9 +9,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@openrouter/ai-sdk-provider": "^2.2.3",
+    "@openrouter/sdk": "^0.9.11",
     "@opentui/core": "^0.1.85",
-    "ai": "^6.0.108",
     "exa-js": "^2.6.1",
     "zod": "^4.3.6"
   },

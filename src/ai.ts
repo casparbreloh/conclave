@@ -1,12 +1,14 @@
-import type { ModelMessage } from "@ai-sdk/provider-utils"
-import { generateText, stepCountIs } from "ai"
+import { stepCountIs } from "@openrouter/sdk"
 
 import { CHAIRMAN_MODEL, CONCLAVE_MODELS, MAX_AGENT_STEPS } from "./config"
 import { openrouter } from "./openrouter"
 import { AGENT_PROMPT, buildChairmanPrompt } from "./prompts"
 import * as tools from "./tools"
 
-export type Message = Extract<ModelMessage, { role: "user" | "assistant" }>
+export interface Message {
+  role: "user" | "assistant"
+  content: string
+}
 
 export interface ConclaveCallbacks {
   onModelComplete: (modelId: string) => void
@@ -15,14 +17,14 @@ export interface ConclaveCallbacks {
 }
 
 export async function single(modelId: string, messages: Message[]): Promise<string> {
-  const { text } = await generateText({
-    model: openrouter(modelId),
-    system: AGENT_PROMPT,
-    messages,
-    tools,
+  const result = openrouter.callModel({
+    model: modelId,
+    instructions: AGENT_PROMPT,
+    input: messages,
+    tools: [tools.webSearch, tools.crawlPages],
     stopWhen: stepCountIs(MAX_AGENT_STEPS),
   })
-  return text
+  return result.getText()
 }
 
 export async function conclave(messages: Message[], callbacks: ConclaveCallbacks): Promise<string> {
@@ -36,13 +38,13 @@ export async function conclave(messages: Message[], callbacks: ConclaveCallbacks
 
   callbacks.onChairmanStart()
 
-  const question = messages.findLast((m) => m.role === "user")?.content as string
-  const { text } = await generateText({
-    model: openrouter(CHAIRMAN_MODEL),
-    prompt: buildChairmanPrompt(question, responses),
+  const question = messages.findLast((m) => m.role === "user")?.content ?? ""
+  const result = openrouter.callModel({
+    model: CHAIRMAN_MODEL,
+    input: buildChairmanPrompt(question, responses),
   })
 
   callbacks.onChairmanComplete()
 
-  return text
+  return result.getText()
 }
