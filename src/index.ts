@@ -47,9 +47,30 @@ function nextId(prefix: string) {
 }
 
 async function main() {
+  const activeIntervals = new Set<ReturnType<typeof setInterval>>()
+  let liveRequested = false
+
+  function clearTrackedInterval(interval: ReturnType<typeof setInterval>) {
+    clearInterval(interval)
+    activeIntervals.delete(interval)
+  }
+
+  function cleanupLiveAndIntervals() {
+    for (const interval of activeIntervals) {
+      clearInterval(interval)
+    }
+    activeIntervals.clear()
+
+    if (liveRequested && !renderer.isDestroyed) {
+      renderer.dropLive()
+    }
+    liveRequested = false
+  }
+
   const renderer = await createCliRenderer({
     exitOnCtrlC: true,
     useAlternateScreen: true,
+    onDestroy: cleanupLiveAndIntervals,
   })
 
   let modeIndex = 0
@@ -112,14 +133,19 @@ async function main() {
     ],
     onSubmit: () => void handleSubmit(),
     onKeyDown: (key) => {
-      if (processing) return
-      if (key.name === "tab" && !key.shift) {
-        if (modeIndex === 1) {
-          singleModelIndex = (singleModelIndex + 1) % config.models.length
-          updateStatusBar()
-        }
-      } else if (key.name === "tab" && key.shift) {
+      if (key.name !== "tab") return
+
+      key.preventDefault()
+      key.stopPropagation()
+
+      if (key.shift) {
         modeIndex = modeIndex === 0 ? 1 : 0
+        updateStatusBar()
+        return
+      }
+
+      if (modeIndex === 1) {
+        singleModelIndex = (singleModelIndex + 1) % config.models.length
         updateStatusBar()
       }
     },
@@ -188,16 +214,21 @@ async function main() {
     prefix = "",
   ): ReturnType<typeof setInterval> {
     let frame = 0
-    return setInterval(() => {
+    const interval = setInterval(() => {
       frame = (frame + 1) % SPINNER.length
       text.content = `${prefix}${label} ${SPINNER[frame]}`
     }, 80)
+    activeIntervals.add(interval)
+    return interval
   }
 
   async function handleSubmit() {
+    if (processing) return
+
     const question = textarea.plainText.trim()
+    if (!question) return
+
     textarea.setText("")
-    if (!question || processing) return
 
     processing = true
     history.push({ role: "user", content: question })
@@ -231,6 +262,7 @@ async function main() {
 
     const spinnerAnim = animateSpinner(thinkingText, thinkingLabel)
     renderer.requestLive()
+    liveRequested = true
 
     try {
       let answer: string
@@ -239,11 +271,10 @@ async function main() {
         answer = await handleConclave(responseBox, thinkingText, spinnerAnim)
       } else {
         answer = await single(mode, history)
-        clearInterval(spinnerAnim)
+        clearTrackedInterval(spinnerAnim)
       }
 
       history.push({ role: "assistant", content: answer })
-      renderer.dropLive()
       responseBox.remove(thinkingText.id)
       responseBox.add(
         new MarkdownRenderable(renderer, {
@@ -254,8 +285,7 @@ async function main() {
         }),
       )
     } catch (error) {
-      clearInterval(spinnerAnim)
-      renderer.dropLive()
+      clearTrackedInterval(spinnerAnim)
       responseBox.remove(thinkingText.id)
       responseBox.add(
         new TextRenderable(renderer, {
@@ -264,10 +294,11 @@ async function main() {
           fg: "#f85149",
         }),
       )
+    } finally {
+      cleanupLiveAndIntervals()
+      processing = false
+      textarea.focus()
     }
-
-    processing = false
-    textarea.focus()
   }
 
   async function handleConclave(
@@ -275,7 +306,7 @@ async function main() {
     thinkingText: TextRenderable,
     dotsAnim: ReturnType<typeof setInterval>,
   ): Promise<string> {
-    clearInterval(dotsAnim)
+    clearTrackedInterval(dotsAnim)
     responseBox.remove(thinkingText.id)
 
     const deliberationBox = new BoxRenderable(renderer, {
@@ -316,7 +347,7 @@ async function main() {
       return await conclave(history, {
         onModelComplete: (modelId) => {
           const anim = animMap.get(modelId)
-          if (anim) clearInterval(anim)
+          if (anim) clearTrackedInterval(anim)
           const t = statusMap.get(modelId)
           if (t) {
             t.content = `  ${formatModelName(modelId)} ✓`
@@ -329,13 +360,15 @@ async function main() {
         },
         onChairmanComplete: () => {
           const anim = animMap.get("chairman")
-          if (anim) clearInterval(anim)
+          if (anim) clearTrackedInterval(anim)
           chairmanStatus.content = `  ${chairmanLabel} ✓`
           chairmanStatus.fg = COLORS.dim
         },
       })
     } finally {
-      for (const anim of animMap.values()) clearInterval(anim)
+      for (const anim of animMap.values()) {
+        clearTrackedInterval(anim)
+      }
     }
   }
 }
