@@ -1,10 +1,8 @@
 import { tool } from "@openrouter/sdk"
-import Exa from "exa-js"
 import { z } from "zod"
 
 import { config } from "../config"
-
-const hasExaApiKey = () => Boolean(process.env.EXA_API_KEY)
+import { exa, hasExaApiKey } from "../exa"
 
 export const deepResearch = tool({
   name: "deepResearch",
@@ -20,9 +18,6 @@ export const deepResearch = tool({
     numResults: z.number().int().positive().max(25).optional().default(5),
   }),
   execute: async ({ query, mode, numResults }) => {
-    if (!hasExaApiKey()) throw new Error("EXA_API_KEY is required to use deepResearch")
-    const exa = new Exa()
-
     const result = await exa.search(query, {
       type: mode,
       numResults,
@@ -46,7 +41,7 @@ export const deepResearch = tool({
 
 export const deepResearchTool = {
   tool: deepResearch,
-  isEnabled: () => hasExaApiKey() && config.deepResearch,
+  isEnabled: () => hasExaApiKey && config.deepResearch,
   promptLine:
     "- deepResearch: use Exa Deep for complex multi-part research when standard web lookup is not enough.",
 }

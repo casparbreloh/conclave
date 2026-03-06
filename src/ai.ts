@@ -49,7 +49,8 @@ export async function conclave(messages: Message[], callbacks: ConclaveCallbacks
     input: buildChairmanPrompt(question, responses),
   })
 
+  const text = await result.getText()
   callbacks.onChairmanComplete()
 
-  return result.getText()
+  return text
 }
