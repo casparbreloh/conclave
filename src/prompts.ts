@@ -1,18 +1,22 @@
 import { getEnabledToolLines } from "./tools"
 
-export const AGENT_PROMPT = (() => {
-  const toolLines = getEnabledToolLines()
-  const parts = ["You are a knowledgeable AI assistant. Answer questions accurately and concisely."]
+const toolLines = getEnabledToolLines()
 
-  if (toolLines.length > 0) {
-    parts.push(`You have tools available:\n${toolLines.join("\n")}`)
-    parts.push(
-      `Tool policy:\n- Use tools when the question requires current or uncertain information.\n- Keep tool usage efficient: do at most 10 tool calls for a single user request.\n- If you already know the answer confidently and it is not time-sensitive, answer directly.`,
-    )
-  }
+let agentPrompt = "You are a knowledgeable AI assistant. Answer questions accurately and concisely."
 
-  return parts.join("\n\n")
-})()
+if (toolLines.length > 0) {
+  agentPrompt += `
+
+You have tools available:
+${toolLines.join("\n")}
+
+Tool policy:
+- Use tools when the question requires current or uncertain information.
+- Keep tool usage efficient: do at most 10 tool calls for a single user request.
+- If you already know the answer confidently and it is not time-sensitive, answer directly.`
+}
+
+export const AGENT_PROMPT = agentPrompt
 
 export function buildChairmanPrompt(
   question: string,
