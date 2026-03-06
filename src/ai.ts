@@ -2,7 +2,7 @@ import { stepCountIs } from "@openrouter/sdk"
 
 import { config } from "./config"
 import { openrouter } from "./openrouter"
-import { AGENT_PROMPT, buildChairmanPrompt } from "./prompts"
+import { buildAgentPrompt, buildChairmanPrompt } from "./prompts"
 import { getEnabledTools } from "./tools"
 
 const MAX_AGENT_STEPS = 25
@@ -24,7 +24,7 @@ export async function single(modelId: string, messages: Message[]): Promise<stri
   const result = openrouter.callModel({
     model: modelId,
     sessionId,
-    instructions: AGENT_PROMPT,
+    instructions: buildAgentPrompt(),
     input: messages,
     tools: enabledTools,
     stopWhen: stepCountIs(MAX_AGENT_STEPS),
@@ -49,7 +49,8 @@ export async function conclave(messages: Message[], callbacks: ConclaveCallbacks
     input: buildChairmanPrompt(question, responses),
   })
 
+  const text = await result.getText()
   callbacks.onChairmanComplete()
 
-  return result.getText()
+  return text
 }

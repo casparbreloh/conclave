@@ -186,14 +186,14 @@ async function main() {
   textarea.focus()
 
   function updateStatusBar() {
+    modeSwitch.content = " (shift+tab to switch)"
+
     if (modeIndex === 0) {
       modeName.content = "Conclave"
-      modeSwitch.content = " (shift+tab to switch)"
       modelInfo.content = ""
       modelCycle.content = ""
     } else {
       modeName.content = "Single"
-      modeSwitch.content = " (shift+tab to switch)"
       modelInfo.content = ` · ${formatModelName(config.models[singleModelIndex]!)}`
       modelCycle.content = " (tab to cycle)"
     }

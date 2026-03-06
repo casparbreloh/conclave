@@ -1,10 +1,8 @@
 import { tool } from "@openrouter/sdk"
-import Exa from "exa-js"
 import { z } from "zod"
 
 import { config } from "../config"
-
-const hasExaApiKey = () => Boolean(process.env.EXA_API_KEY)
+import { exa, hasExaApiKey } from "../exa"
 
 export const webSearch = tool({
   name: "webSearch",
@@ -15,9 +13,6 @@ export const webSearch = tool({
     numResults: z.number().optional().default(5).describe("Number of results to return"),
   }),
   execute: async ({ query, numResults }) => {
-    if (!hasExaApiKey()) throw new Error("EXA_API_KEY is required to use webSearch")
-    const exa = new Exa()
-
     const { results } = await exa.search(query, {
       numResults,
       contents: { highlights: true },
@@ -39,9 +34,6 @@ export const crawlPages = tool({
     urls: z.array(z.string()).describe("URLs to extract content from"),
   }),
   execute: async ({ urls }) => {
-    if (!hasExaApiKey()) throw new Error("EXA_API_KEY is required to use crawlPages")
-    const exa = new Exa()
-
     const { results } = await exa.getContents(urls, {
       text: true,
       livecrawl: "preferred",
@@ -58,13 +50,13 @@ export const crawlPages = tool({
 export const webSearchTools = [
   {
     tool: webSearch,
-    isEnabled: () => hasExaApiKey() && config.webSearch,
+    isEnabled: () => hasExaApiKey && config.webSearch,
     promptLine:
       "- webSearch: find current information, news, or facts; start here when you need web grounding.",
   },
   {
     tool: crawlPages,
-    isEnabled: () => hasExaApiKey() && config.webSearch,
+    isEnabled: () => hasExaApiKey && config.webSearch,
     promptLine:
       "- crawlPages: read full content from specific URLs after identifying relevant pages.",
   },
