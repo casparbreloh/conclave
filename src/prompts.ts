@@ -1,21 +1,21 @@
 import { getEnabledToolLines } from "./tools"
 
-const toolsSection = getEnabledToolLines().join("\n")
-
 export function buildAgentPrompt(): string {
+  const toolLines = getEnabledToolLines()
+
+  if (toolLines.length === 0) {
+    return "You are a knowledgeable AI assistant. Answer questions accurately and concisely."
+  }
+
   return `You are a knowledgeable AI assistant. Answer questions accurately and concisely.
-${
-  toolsSection
-    ? `
+
 You have tools available:
-${toolsSection}
+${toolLines.join("\n")}
 
 Tool policy:
 - Use tools when the question requires current or uncertain information.
 - Keep tool usage efficient: do at most 10 tool calls for a single user request.
 - If you already know the answer confidently and it is not time-sensitive, answer directly.`
-    : ""
-}`
 }
 
 export function buildChairmanPrompt(
