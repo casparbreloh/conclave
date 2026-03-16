@@ -3,8 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "check": "bun run format-check && bun run lint && bun run typecheck",
     "dev": "bun run src/index.ts",
     "format": "oxfmt",
+    "format-check": "oxfmt --check",
     "lint": "oxlint",
     "typecheck": "tsc --noEmit"
   },
