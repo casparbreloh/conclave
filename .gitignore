@@ -1,27 +1,26 @@
 # Dependencies
-node_modules/
+node_modules
 
-# Build
-dist/
+# Build outputs
+dist
+build
 *.tsbuildinfo
 
-# Tooling
-.nx/
-
-# Environment
+# Environment variables
 .env
 .env*.local
 
-# IDE & Editors
+# IDEs and editors
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
-.idea/
+.idea
 *.swp
 *.swo
 *~
 
 # Logs
+logs
 *.log
