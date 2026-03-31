@@ -1,38 +1,38 @@
-import { tool, type TurnContext } from "@openrouter/sdk"
-import { z } from "zod"
+import { tool, type TurnContext } from "@openrouter/sdk";
+import { z } from "zod";
 
-import { config } from "../config"
+import { config } from "../config";
 
 interface ThoughtData {
-  thought: string
-  thoughtNumber: number
-  totalThoughts: number
-  isRevision?: boolean
-  revisesThought?: number
-  branchFromThought?: number
-  branchId?: string
-  needsMoreThoughts?: boolean
-  nextThoughtNeeded: boolean
+  thought: string;
+  thoughtNumber: number;
+  totalThoughts: number;
+  isRevision?: boolean;
+  revisesThought?: number;
+  branchFromThought?: number;
+  branchId?: string;
+  needsMoreThoughts?: boolean;
+  nextThoughtNeeded: boolean;
 }
 
 class SequentialThinkingStore {
-  private thoughtHistory: ThoughtData[] = []
-  private branches: Record<string, ThoughtData[]> = {}
+  private thoughtHistory: ThoughtData[] = [];
+  private branches: Record<string, ThoughtData[]> = {};
 
   processThought(input: ThoughtData) {
     const normalizedInput =
       input.thoughtNumber > input.totalThoughts
         ? { ...input, totalThoughts: input.thoughtNumber }
-        : input
+        : input;
 
-    this.thoughtHistory.push(normalizedInput)
+    this.thoughtHistory.push(normalizedInput);
 
     if (normalizedInput.branchFromThought && normalizedInput.branchId) {
       if (!this.branches[normalizedInput.branchId]) {
-        this.branches[normalizedInput.branchId] = []
+        this.branches[normalizedInput.branchId] = [];
       }
 
-      this.branches[normalizedInput.branchId]!.push(normalizedInput)
+      this.branches[normalizedInput.branchId]!.push(normalizedInput);
     }
 
     return {
@@ -41,20 +41,20 @@ class SequentialThinkingStore {
       nextThoughtNeeded: normalizedInput.nextThoughtNeeded,
       branches: Object.keys(this.branches),
       thoughtHistoryLength: this.thoughtHistory.length,
-    }
+    };
   }
 }
 
-const stores = new Map<string, SequentialThinkingStore>()
+const stores = new Map<string, SequentialThinkingStore>();
 
 function resolveStoreKey(context?: TurnContext): string {
-  const sessionId = context?.turnRequest?.sessionId
-  if (typeof sessionId === "string" && sessionId.length > 0) return `session:${sessionId}`
+  const sessionId = context?.turnRequest?.sessionId;
+  if (typeof sessionId === "string" && sessionId.length > 0) return `session:${sessionId}`;
 
-  const callId = context?.toolCall?.callId
-  if (typeof callId === "string" && callId.length > 0) return `call:${callId}`
+  const callId = context?.toolCall?.callId;
+  if (typeof callId === "string" && callId.length > 0) return `call:${callId}`;
 
-  return "default"
+  return "default";
 }
 
 function shouldReset(input: ThoughtData): boolean {
@@ -63,19 +63,19 @@ function shouldReset(input: ThoughtData): boolean {
     input.isRevision !== true &&
     input.revisesThought === undefined &&
     input.branchFromThought === undefined
-  )
+  );
 }
 
 function getStore(input: ThoughtData, context?: TurnContext): SequentialThinkingStore {
-  const key = resolveStoreKey(context)
+  const key = resolveStoreKey(context);
 
   if (shouldReset(input) || !stores.has(key)) {
-    const store = new SequentialThinkingStore()
-    stores.set(key, store)
-    return store
+    const store = new SequentialThinkingStore();
+    stores.set(key, store);
+    return store;
   }
 
-  return stores.get(key)!
+  return stores.get(key)!;
 }
 
 export const sequentialThinking = tool({
@@ -119,11 +119,11 @@ export const sequentialThinking = tool({
     thoughtHistoryLength: z.number(),
   }),
   execute: async (input, context) => getStore(input, context).processThought(input),
-})
+});
 
 export const sequentialThinkingTool = {
   tool: sequentialThinking,
   isEnabled: () => config.sequentialThinking,
   promptLine:
     "- sequentialThinking: structured step-by-step reasoning with revisions and branches; use when a problem needs iterative analysis.",
-}
+};

@@ -1,8 +1,8 @@
-import { tool } from "@openrouter/sdk"
-import { z } from "zod"
+import { tool } from "@openrouter/sdk";
+import { z } from "zod";
 
-import { config } from "../config"
-import { exa, hasExaApiKey } from "../exa"
+import { config } from "../config";
+import { exa, hasExaApiKey } from "../exa";
 
 export const deepResearch = tool({
   name: "deepResearch",
@@ -25,7 +25,7 @@ export const deepResearch = tool({
         highlights: true,
         text: true,
       },
-    })
+    });
 
     return {
       results: result.results.map((entry) => ({
@@ -35,13 +35,13 @@ export const deepResearch = tool({
         text: entry.text,
       })),
       output: result.output?.content,
-    }
+    };
   },
-})
+});
 
 export const deepResearchTool = {
   tool: deepResearch,
   isEnabled: () => hasExaApiKey && config.deepResearch,
   promptLine:
     "- deepResearch: use Exa Deep for complex multi-part research when standard web lookup is not enough.",
-}
+};
