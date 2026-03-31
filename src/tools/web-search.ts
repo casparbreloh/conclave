@@ -1,8 +1,8 @@
-import { tool } from "@openrouter/sdk"
-import { z } from "zod"
+import { tool } from "@openrouter/sdk";
+import { z } from "zod";
 
-import { config } from "../config"
-import { exa, hasExaApiKey } from "../exa"
+import { config } from "../config";
+import { exa, hasExaApiKey } from "../exa";
 
 export const webSearch = tool({
   name: "webSearch",
@@ -16,15 +16,15 @@ export const webSearch = tool({
     const { results } = await exa.search(query, {
       numResults,
       contents: { highlights: true },
-    })
+    });
 
     return results.map((result) => ({
       title: result.title,
       url: result.url,
       highlights: result.highlights,
-    }))
+    }));
   },
-})
+});
 
 export const crawlPages = tool({
   name: "crawlPages",
@@ -37,15 +37,15 @@ export const crawlPages = tool({
     const { results } = await exa.getContents(urls, {
       text: true,
       livecrawl: "preferred",
-    })
+    });
 
     return results.map((result) => ({
       title: result.title,
       url: result.url,
       text: result.text,
-    }))
+    }));
   },
-})
+});
 
 export const webSearchTools = [
   {
@@ -60,4 +60,4 @@ export const webSearchTools = [
     promptLine:
       "- crawlPages: read full content from specific URLs after identifying relevant pages.",
   },
-]
+];

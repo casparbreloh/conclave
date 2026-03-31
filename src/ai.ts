@@ -1,26 +1,26 @@
-import { stepCountIs } from "@openrouter/sdk"
+import { stepCountIs } from "@openrouter/sdk";
 
-import { config } from "./config"
-import { openrouter } from "./openrouter"
-import { buildAgentPrompt, buildChairmanPrompt } from "./prompts"
-import { getEnabledTools } from "./tools"
+import { config } from "./config";
+import { openrouter } from "./openrouter";
+import { buildAgentPrompt, buildChairmanPrompt } from "./prompts";
+import { getEnabledTools } from "./tools";
 
-const MAX_AGENT_STEPS = 25
+const MAX_AGENT_STEPS = 25;
 
 export interface Message {
-  role: "user" | "assistant"
-  content: string
+  role: "user" | "assistant";
+  content: string;
 }
 
 export interface ConclaveCallbacks {
-  onModelComplete: (modelId: string) => void
-  onChairmanStart: () => void
-  onChairmanComplete: () => void
+  onModelComplete: (modelId: string) => void;
+  onChairmanStart: () => void;
+  onChairmanComplete: () => void;
 }
 
 export async function single(modelId: string, messages: Message[]): Promise<string> {
-  const enabledTools = getEnabledTools()
-  const sessionId = crypto.randomUUID()
+  const enabledTools = getEnabledTools();
+  const sessionId = crypto.randomUUID();
   const result = openrouter.callModel({
     model: modelId,
     sessionId,
@@ -28,29 +28,29 @@ export async function single(modelId: string, messages: Message[]): Promise<stri
     input: messages,
     tools: enabledTools,
     stopWhen: stepCountIs(MAX_AGENT_STEPS),
-  })
-  return result.getText()
+  });
+  return result.getText();
 }
 
 export async function conclave(messages: Message[], callbacks: ConclaveCallbacks): Promise<string> {
   const responses = await Promise.all(
     config.models.map(async (modelId) => {
-      const text = await single(modelId, messages)
-      callbacks.onModelComplete(modelId)
-      return { modelId, text }
+      const text = await single(modelId, messages);
+      callbacks.onModelComplete(modelId);
+      return { modelId, text };
     }),
-  )
+  );
 
-  callbacks.onChairmanStart()
+  callbacks.onChairmanStart();
 
-  const question = messages.findLast((m) => m.role === "user")?.content ?? ""
+  const question = messages.findLast((m) => m.role === "user")?.content ?? "";
   const result = openrouter.callModel({
     model: config.chairmanModel,
     input: buildChairmanPrompt(question, responses),
-  })
+  });
 
-  const text = await result.getText()
-  callbacks.onChairmanComplete()
+  const text = await result.getText();
+  callbacks.onChairmanComplete();
 
-  return text
+  return text;
 }

@@ -1,3 +1,3 @@
-import { OpenRouter } from "@openrouter/sdk"
+import { OpenRouter } from "@openrouter/sdk";
 
-export const openrouter = new OpenRouter()
+export const openrouter = new OpenRouter();

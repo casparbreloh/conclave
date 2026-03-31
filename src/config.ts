@@ -1,6 +1,6 @@
-import { z } from "zod"
+import { z } from "zod";
 
-import rawConfig from "../config.json"
+import rawConfig from "../config.json";
 
 export const configSchema = z
   .object({
@@ -10,6 +10,6 @@ export const configSchema = z
     webSearch: z.boolean(),
     deepResearch: z.boolean(),
   })
-  .strict()
+  .strict();
 
-export const config = configSchema.parse(rawConfig)
+export const config = configSchema.parse(rawConfig);
