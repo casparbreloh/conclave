@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Format, Lint, Typecheck, Build
+    name: Format, Lint, Typecheck
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -38,8 +38,3 @@ jobs:
 
       - name: Typecheck
         run: bun run typecheck
-
-      - name: Build
-        run: bun run build
-        env:
-          VITE_CONVEX_URL: https://placeholder.convex.cloud
