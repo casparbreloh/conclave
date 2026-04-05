@@ -14,6 +14,7 @@ export interface Message {
 
 export interface ConclaveCallbacks {
   onModelComplete: (modelId: string) => void;
+  onModelError: (modelId: string, error: Error) => void;
   onChairmanStart: () => void;
   onChairmanComplete: () => void;
 }
@@ -33,13 +34,29 @@ export async function single(modelId: string, messages: Message[]): Promise<stri
 }
 
 export async function conclave(messages: Message[], callbacks: ConclaveCallbacks): Promise<string> {
-  const responses = await Promise.all(
+  const results = await Promise.allSettled(
     config.models.map(async (modelId) => {
       const text = await single(modelId, messages);
       callbacks.onModelComplete(modelId);
       return { modelId, text };
     }),
   );
+
+  const responses: { modelId: string; text: string }[] = [];
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i]!;
+    if (r.status === "fulfilled") {
+      responses.push(r.value);
+    } else {
+      const modelId = config.models[i]!;
+      const err = r.reason instanceof Error ? r.reason : new Error(String(r.reason));
+      callbacks.onModelError(modelId, err);
+    }
+  }
+
+  if (responses.length === 0) {
+    throw new Error("All models failed to respond");
+  }
 
   callbacks.onChairmanStart();
 

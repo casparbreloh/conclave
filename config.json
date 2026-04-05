@@ -5,7 +5,7 @@
     "anthropic/claude-opus-4.6",
     "x-ai/grok-4.20-multi-agent",
     "deepseek/deepseek-v3.2-speciale",
-    "qwen/qwen3.6-plus"
+    "qwen/qwen3.6-plus:free"
   ],
   "chairmanModel": "anthropic/claude-opus-4.6",
   "sequentialThinking": true,
