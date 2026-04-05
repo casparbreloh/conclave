@@ -68,21 +68,26 @@ async function main() {
   }
 
   const renderer = await createCliRenderer({
-    exitOnCtrlC: true,
+    exitOnCtrlC: false,
     useAlternateScreen: true,
     useMouse: true,
     onDestroy: cleanupLiveAndIntervals,
   });
 
   renderer._internalKeyInput.onInternal("keypress", (key) => {
-    if (key.name === "c" && key.meta && renderer.hasSelection) {
-      key.preventDefault();
-      const selection = renderer.getSelection();
-      if (selection) {
-        const text = selection.getSelectedText();
-        if (text) renderer.copyToClipboardOSC52(text);
+    if (key.name === "c" && (key.meta || key.ctrl)) {
+      if (renderer.hasSelection) {
+        key.preventDefault();
+        const selection = renderer.getSelection();
+        if (selection) {
+          const text = selection.getSelectedText();
+          if (text) renderer.copyToClipboardOSC52(text);
+        }
+        renderer.clearSelection();
+      } else if (key.ctrl) {
+        renderer.destroy();
+        process.exit(0);
       }
-      renderer.clearSelection();
     }
   });
 
