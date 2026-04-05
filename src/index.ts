@@ -70,7 +70,20 @@ async function main() {
   const renderer = await createCliRenderer({
     exitOnCtrlC: true,
     useAlternateScreen: true,
+    useMouse: true,
     onDestroy: cleanupLiveAndIntervals,
+  });
+
+  renderer._internalKeyInput.onInternal("keypress", (key) => {
+    if (key.name === "c" && key.meta && renderer.hasSelection) {
+      key.preventDefault();
+      const selection = renderer.getSelection();
+      if (selection) {
+        const text = selection.getSelectedText();
+        if (text) renderer.copyToClipboardOSC52(text);
+      }
+      renderer.clearSelection();
+    }
   });
 
   let modeIndex = 0;
@@ -352,6 +365,15 @@ async function main() {
           if (t) {
             t.content = `  ${formatModelName(modelId)} ✓`;
             t.fg = COLORS.dim;
+          }
+        },
+        onModelError: (modelId, _error) => {
+          const anim = animMap.get(modelId);
+          if (anim) clearTrackedInterval(anim);
+          const t = statusMap.get(modelId);
+          if (t) {
+            t.content = `  ${formatModelName(modelId)} ✗`;
+            t.fg = "#f85149";
           }
         },
         onChairmanStart: () => {
