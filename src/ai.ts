@@ -22,15 +22,30 @@ export interface ConclaveCallbacks {
 export async function single(modelId: string, messages: Message[]): Promise<string> {
   const enabledTools = getEnabledTools();
   const sessionId = crypto.randomUUID();
-  const result = openrouter.callModel({
-    model: modelId,
-    sessionId,
-    instructions: buildAgentPrompt(),
-    input: messages,
-    tools: enabledTools,
-    stopWhen: stepCountIs(MAX_AGENT_STEPS),
-  });
-  return result.getText();
+
+  try {
+    const result = openrouter.callModel({
+      model: modelId,
+      sessionId,
+      instructions: buildAgentPrompt(),
+      input: messages,
+      tools: enabledTools.length > 0 ? enabledTools : undefined,
+      stopWhen: stepCountIs(MAX_AGENT_STEPS),
+    });
+    return await result.getText();
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (enabledTools.length > 0 && /no endpoints found that support tool use/i.test(msg)) {
+      const result = openrouter.callModel({
+        model: modelId,
+        sessionId: crypto.randomUUID(),
+        instructions: buildAgentPrompt(),
+        input: messages,
+      });
+      return await result.getText();
+    }
+    throw error;
+  }
 }
 
 export async function conclave(messages: Message[], callbacks: ConclaveCallbacks): Promise<string> {

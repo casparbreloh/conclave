@@ -71,19 +71,13 @@ async function main() {
     exitOnCtrlC: true,
     useAlternateScreen: true,
     useMouse: true,
+    useKittyKeyboard: {},
     onDestroy: cleanupLiveAndIntervals,
   });
 
-  renderer._internalKeyInput.onInternal("keypress", (key) => {
-    if (key.name === "c" && key.meta && renderer.hasSelection) {
-      key.preventDefault();
-      const selection = renderer.getSelection();
-      if (selection) {
-        const text = selection.getSelectedText();
-        if (text) renderer.copyToClipboardOSC52(text);
-      }
-      renderer.clearSelection();
-    }
+  renderer.on("selection", (selection) => {
+    const text = selection.getSelectedText();
+    if (text) renderer.copyToClipboardOSC52(text);
   });
 
   let modeIndex = 0;
