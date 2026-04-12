@@ -8,8 +8,8 @@ import {
   SyntaxStyle,
   RGBA,
 } from "@opentui/core";
-import Exa from "exa-js";
 import { Layer, ManagedRuntime } from "effect";
+import Exa from "exa-js";
 
 import { conclave, single, type Message } from "./ai";
 import { config } from "./config";
@@ -371,36 +371,38 @@ async function main() {
     responseBox.add(deliberationBox);
 
     try {
-      return await runtime.runPromise(conclave(history, enabledTools, {
-        onModelComplete: (modelId) => {
-          const anim = animMap.get(modelId);
-          if (anim) clearTrackedInterval(anim);
-          const t = statusMap.get(modelId);
-          if (t) {
-            t.content = `  ${formatModelName(modelId)} ✓`;
-            t.fg = COLORS.dim;
-          }
-        },
-        onModelError: (modelId, _error) => {
-          const anim = animMap.get(modelId);
-          if (anim) clearTrackedInterval(anim);
-          const t = statusMap.get(modelId);
-          if (t) {
-            t.content = `  ${formatModelName(modelId)} ✗`;
-            t.fg = "#f85149";
-          }
-        },
-        onChairmanStart: () => {
-          chairmanStatus.fg = COLORS.dim;
-          animMap.set("chairman", animateSpinner(chairmanStatus, chairmanLabel, "  "));
-        },
-        onChairmanComplete: () => {
-          const anim = animMap.get("chairman");
-          if (anim) clearTrackedInterval(anim);
-          chairmanStatus.content = `  ${chairmanLabel} ✓`;
-          chairmanStatus.fg = COLORS.dim;
-        },
-      }));
+      return await runtime.runPromise(
+        conclave(history, enabledTools, {
+          onModelComplete: (modelId) => {
+            const anim = animMap.get(modelId);
+            if (anim) clearTrackedInterval(anim);
+            const t = statusMap.get(modelId);
+            if (t) {
+              t.content = `  ${formatModelName(modelId)} ✓`;
+              t.fg = COLORS.dim;
+            }
+          },
+          onModelError: (modelId, _error) => {
+            const anim = animMap.get(modelId);
+            if (anim) clearTrackedInterval(anim);
+            const t = statusMap.get(modelId);
+            if (t) {
+              t.content = `  ${formatModelName(modelId)} ✗`;
+              t.fg = "#f85149";
+            }
+          },
+          onChairmanStart: () => {
+            chairmanStatus.fg = COLORS.dim;
+            animMap.set("chairman", animateSpinner(chairmanStatus, chairmanLabel, "  "));
+          },
+          onChairmanComplete: () => {
+            const anim = animMap.get("chairman");
+            if (anim) clearTrackedInterval(anim);
+            chairmanStatus.content = `  ${chairmanLabel} ✓`;
+            chairmanStatus.fg = COLORS.dim;
+          },
+        }),
+      );
     } finally {
       for (const anim of animMap.values()) {
         clearTrackedInterval(anim);

@@ -20,8 +20,7 @@ export interface OpenRouterService {
   }) => Effect.Effect<string, ModelCallError>;
 }
 
-export const OpenRouterService =
-  Context.Service<OpenRouterService>("OpenRouterService");
+export const OpenRouterService = Context.Service<OpenRouterService>("OpenRouterService");
 
 export const OpenRouterServiceLive = Layer.sync(OpenRouterService)(() => {
   const client = new OpenRouter();

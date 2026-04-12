@@ -1,19 +1,13 @@
-import Exa from "exa-js";
 import { Context, Effect, Layer } from "effect";
+import Exa from "exa-js";
 
 import { ExaError } from "./errors";
 
 export const hasExaApiKey = Boolean(process.env.EXA_API_KEY);
 
 export interface ExaService {
-  readonly search: (
-    query: string,
-    opts: Record<string, any>,
-  ) => Effect.Effect<any, ExaError>;
-  readonly getContents: (
-    urls: string[],
-    opts: Record<string, any>,
-  ) => Effect.Effect<any, ExaError>;
+  readonly search: (query: string, opts: Record<string, any>) => Effect.Effect<any, ExaError>;
+  readonly getContents: (urls: string[], opts: Record<string, any>) => Effect.Effect<any, ExaError>;
 }
 
 export const ExaService = Context.Service<ExaService>("ExaService");

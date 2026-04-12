@@ -40,14 +40,8 @@ export const single = (
       })
       .pipe(
         Effect.catchTag("ModelCallError", (err) => {
-          const msg =
-            err.cause instanceof Error
-              ? err.cause.message
-              : String(err.cause);
-          if (
-            enabledTools.length > 0 &&
-            /no endpoints found that support tool use/i.test(msg)
-          ) {
+          const msg = err.cause instanceof Error ? err.cause.message : String(err.cause);
+          if (enabledTools.length > 0 && /no endpoints found that support tool use/i.test(msg)) {
             return svc.callModel({
               model: modelId,
               sessionId: crypto.randomUUID(),
@@ -62,11 +56,7 @@ export const single = (
     return result;
   });
 
-export const conclave = (
-  messages: Message[],
-  enabledTools: Tool[],
-  callbacks: ConclaveCallbacks,
-) =>
+export const conclave = (messages: Message[], enabledTools: Tool[], callbacks: ConclaveCallbacks) =>
   Effect.gen(function* () {
     const svc = yield* OpenRouterService;
 
@@ -86,15 +76,12 @@ export const conclave = (
     }
 
     if (successes.length === 0) {
-      return yield* Effect.fail(
-        new AllModelsFailedError({ errors: failures }),
-      );
+      return yield* Effect.fail(new AllModelsFailedError({ errors: failures }));
     }
 
     callbacks.onChairmanStart();
 
-    const question =
-      messages.findLast((m) => m.role === "user")?.content ?? "";
+    const question = messages.findLast((m) => m.role === "user")?.content ?? "";
 
     const text = yield* svc.callModel({
       model: config.chairmanModel,
