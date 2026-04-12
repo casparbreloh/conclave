@@ -1,4 +1,5 @@
 import { stepCountIs } from "@openrouter/sdk";
+import type { Tool } from "@openrouter/sdk";
 import { Effect } from "effect";
 
 import { config } from "./config";
@@ -6,7 +7,6 @@ import { AllModelsFailedError, ModelCallError } from "./errors";
 import { OpenRouterService } from "./openrouter";
 import type { Message } from "./openrouter";
 import { buildAgentPrompt, buildChairmanPrompt } from "./prompts";
-import { getEnabledTools } from "./tools";
 
 export type { Message } from "./openrouter";
 
@@ -22,11 +22,11 @@ export interface ConclaveCallbacks {
 export const single = (
   modelId: string,
   messages: Message[],
+  enabledTools: Tool[],
   conclave: boolean = false,
 ) =>
   Effect.gen(function* () {
     const svc = yield* OpenRouterService;
-    const enabledTools = getEnabledTools();
     const sessionId = crypto.randomUUID();
 
     const result = yield* svc
@@ -64,6 +64,7 @@ export const single = (
 
 export const conclave = (
   messages: Message[],
+  enabledTools: Tool[],
   callbacks: ConclaveCallbacks,
 ) =>
   Effect.gen(function* () {
@@ -72,7 +73,7 @@ export const conclave = (
     const [failures, successes] = yield* Effect.partition(
       config.models,
       (modelId) =>
-        single(modelId, messages, true).pipe(
+        single(modelId, messages, enabledTools, true).pipe(
           Effect.tap(() => Effect.sync(() => callbacks.onModelComplete(modelId))),
           Effect.map((text) => ({ modelId, text })),
         ),

@@ -1,7 +1,7 @@
 import { tool, type TurnContext } from "@openrouter/sdk";
 import { z } from "zod";
 
-import { config } from "../config";
+import type { Config } from "../config";
 
 interface ThoughtData {
   thought: string;
@@ -78,7 +78,7 @@ function getStore(input: ThoughtData, context?: TurnContext): SequentialThinking
   return stores.get(key)!;
 }
 
-export const sequentialThinking = tool({
+const sequentialThinking = tool({
   name: "sequentialThinking",
   description:
     "Structured step-by-step reasoning with support for revisions and branching when solving complex problems.",
@@ -121,9 +121,11 @@ export const sequentialThinking = tool({
   execute: async (input, context) => getStore(input, context).processThought(input),
 });
 
-export const sequentialThinkingTool = {
-  tool: sequentialThinking,
-  isEnabled: () => config.sequentialThinking,
-  promptLine:
-    "- sequentialThinking: structured step-by-step reasoning with revisions and branches; use when a problem needs iterative analysis.",
-};
+export function sequentialThinkingTool(config: Config) {
+  return {
+    tool: sequentialThinking,
+    isEnabled: config.sequentialThinking,
+    promptLine:
+      "- sequentialThinking: structured step-by-step reasoning with revisions and branches; use when a problem needs iterative analysis.",
+  } as const;
+}

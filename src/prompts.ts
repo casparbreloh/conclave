@@ -2,7 +2,7 @@ import { config } from "./config";
 import { getEnabledToolLines } from "./tools";
 
 export function buildAgentPrompt(conclave: boolean = false): string {
-  const toolLines = getEnabledToolLines();
+  const toolLines = getEnabledToolLines(config);
 
   const diversity = `Think independently. Don't default to the safest or most conventional answer.
 If you see a non-obvious angle or contrarian insight, include it — even if it goes against common wisdom.`;
