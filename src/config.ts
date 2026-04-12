@@ -1,16 +1,23 @@
-import { z } from "zod";
+import { Schema } from "effect";
 
 import rawConfig from "../config.json";
 
-export const configSchema = z
-  .object({
-    models: z.array(z.string()).min(1),
-    chairmanModel: z.string(),
-    sequentialThinking: z.boolean(),
-    webSearch: z.boolean(),
-    deepResearch: z.boolean(),
-    lenses: z.array(z.object({ name: z.string(), prompt: z.string() })).min(1),
-  })
-  .strict();
+export const configSchema = Schema.Struct({
+  models: Schema.NonEmptyArray(Schema.String),
+  chairmanModel: Schema.String,
+  sequentialThinking: Schema.Boolean,
+  webSearch: Schema.Boolean,
+  deepResearch: Schema.Boolean,
+  lenses: Schema.NonEmptyArray(
+    Schema.Struct({
+      name: Schema.String,
+      prompt: Schema.String,
+    }),
+  ),
+});
 
-export const config = configSchema.parse(rawConfig);
+export type Config = typeof configSchema.Type;
+
+export const config = Schema.decodeUnknownSync(configSchema)(rawConfig, {
+  onExcessProperty: "error",
+});
