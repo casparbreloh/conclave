@@ -9,6 +9,7 @@ export const configSchema = z
     sequentialThinking: z.boolean(),
     webSearch: z.boolean(),
     deepResearch: z.boolean(),
+    lenses: z.array(z.object({ name: z.string(), prompt: z.string() })).min(1),
   })
   .strict();
 
