@@ -3,11 +3,18 @@ import { getEnabledToolLines } from "./tools";
 export function buildAgentPrompt(): string {
   const toolLines = getEnabledToolLines();
 
+  const diversity = `Think independently. Don't default to the safest or most conventional answer.
+If you see a non-obvious angle or contrarian insight, include it — even if it goes against common wisdom.`;
+
   if (toolLines.length === 0) {
-    return "You are a knowledgeable AI assistant. Answer questions accurately and concisely.";
+    return `You are a knowledgeable AI assistant. Answer questions accurately and concisely.
+
+${diversity}`;
   }
 
   return `You are a knowledgeable AI assistant. Answer questions accurately and concisely.
+
+${diversity}
 
 You have tools available:
 ${toolLines.join("\n")}
@@ -33,10 +40,11 @@ export function buildChairmanPrompt(
 ${responsesSection}
 
 Synthesize the best answer by:
-- Prioritizing points of agreement across models
-- Incorporating unique insights from the strongest responses
-- Resolving contradictions using the majority view and strongest reasoning
-- Producing a clear, comprehensive response that exceeds any individual answer
+- Identifying where models agree — this forms the foundation
+- Highlighting unique insights that only one or two models raised
+- When models contradict each other, evaluate the reasoning on both sides rather than defaulting to majority vote
+- If a model raised a non-obvious or contrarian point with strong reasoning, give it weight even if it's an outlier
+- Provide a clear, direct conclusion — avoid hedging when the evidence points in one direction
 
 Provide your synthesized answer directly, without meta-commentary about the process.`;
 }
