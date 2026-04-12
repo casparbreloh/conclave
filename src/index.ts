@@ -8,12 +8,12 @@ import {
   SyntaxStyle,
   RGBA,
 } from "@opentui/core";
-import { Layer, ManagedRuntime } from "effect";
+import { ManagedRuntime } from "effect";
 import Exa from "exa-js";
 
 import { conclave, single, type Message } from "./ai";
 import { config } from "./config";
-import { ExaServiceLive, hasExaApiKey } from "./exa";
+import { hasExaApiKey } from "./exa";
 import { OpenRouterServiceLive } from "./openrouter";
 import { getEnabledTools } from "./tools";
 
@@ -52,8 +52,7 @@ function nextId(prefix: string) {
 }
 
 async function main() {
-  const AppLive = Layer.merge(OpenRouterServiceLive, ExaServiceLive);
-  const runtime = ManagedRuntime.make(AppLive);
+  const runtime = ManagedRuntime.make(OpenRouterServiceLive);
   const exaClient = hasExaApiKey ? new Exa() : null;
   const enabledTools = getEnabledTools(config, exaClient);
 
@@ -82,14 +81,21 @@ async function main() {
     useAlternateScreen: true,
     useMouse: true,
     useKittyKeyboard: {},
-    onDestroy: cleanupLiveAndIntervals,
+    onDestroy: () => {
+      cleanupLiveAndIntervals();
+      void runtime.dispose();
+    },
   });
 
   function copyToClipboard(text: string) {
     if (process.platform === "darwin") {
-      const proc = Bun.spawn(["pbcopy"], { stdin: "pipe" });
-      void proc.stdin.write(text);
-      void proc.stdin.end();
+      try {
+        const proc = Bun.spawn(["pbcopy"], { stdin: "pipe" });
+        void proc.stdin.write(text);
+        void proc.stdin.end();
+      } catch {
+        renderer.copyToClipboardOSC52(text);
+      }
     } else {
       renderer.copyToClipboardOSC52(text);
     }
