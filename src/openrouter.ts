@@ -12,9 +12,9 @@ export interface Message {
 export interface OpenRouterService {
   readonly callModel: (opts: {
     model: string;
-    sessionId: string;
-    instructions: string;
-    input: Message[];
+    sessionId?: string;
+    instructions?: string;
+    input: Message[] | string;
     tools?: Tool[];
     stopWhen?: StopCondition;
   }) => Effect.Effect<string, ModelCallError>;
