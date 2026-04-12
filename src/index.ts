@@ -8,9 +8,14 @@ import {
   SyntaxStyle,
   RGBA,
 } from "@opentui/core";
+import Exa from "exa-js";
+import { Layer, ManagedRuntime } from "effect";
 
 import { conclave, single, type Message } from "./ai";
 import { config } from "./config";
+import { ExaServiceLive, hasExaApiKey } from "./exa";
+import { OpenRouterServiceLive } from "./openrouter";
+import { getEnabledTools } from "./tools";
 
 const COLORS = {
   text: "#e6edf3",
@@ -47,6 +52,11 @@ function nextId(prefix: string) {
 }
 
 async function main() {
+  const AppLive = Layer.merge(OpenRouterServiceLive, ExaServiceLive);
+  const runtime = ManagedRuntime.make(AppLive);
+  const exaClient = hasExaApiKey ? new Exa() : null;
+  const enabledTools = getEnabledTools(config, exaClient);
+
   const activeIntervals = new Set<ReturnType<typeof setInterval>>();
   let liveRequested = false;
 
@@ -75,9 +85,19 @@ async function main() {
     onDestroy: cleanupLiveAndIntervals,
   });
 
+  function copyToClipboard(text: string) {
+    if (process.platform === "darwin") {
+      const proc = Bun.spawn(["pbcopy"], { stdin: "pipe" });
+      void proc.stdin.write(text);
+      void proc.stdin.end();
+    } else {
+      renderer.copyToClipboardOSC52(text);
+    }
+  }
+
   renderer.on("selection", (selection) => {
     const text = selection.getSelectedText();
-    if (text) renderer.copyToClipboardOSC52(text);
+    if (text) copyToClipboard(text);
   });
 
   let modeIndex = 0;
@@ -277,7 +297,7 @@ async function main() {
       if (mode === "conclave") {
         answer = await handleConclave(responseBox, thinkingText, spinnerAnim);
       } else {
-        answer = await single(mode, history);
+        answer = await runtime.runPromise(single(mode, history, enabledTools));
         clearTrackedInterval(spinnerAnim);
       }
 
@@ -351,7 +371,7 @@ async function main() {
     responseBox.add(deliberationBox);
 
     try {
-      return await conclave(history, {
+      return await runtime.runPromise(conclave(history, enabledTools, {
         onModelComplete: (modelId) => {
           const anim = animMap.get(modelId);
           if (anim) clearTrackedInterval(anim);
@@ -380,7 +400,7 @@ async function main() {
           chairmanStatus.content = `  ${chairmanLabel} ✓`;
           chairmanStatus.fg = COLORS.dim;
         },
-      });
+      }));
     } finally {
       for (const anim of animMap.values()) {
         clearTrackedInterval(anim);
