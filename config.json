@@ -1,14 +1,25 @@
 {
-  "models": [
-    "google/gemini-3.1-pro-preview",
-    "openai/gpt-5.4",
-    "anthropic/claude-opus-4.6",
-    "x-ai/grok-4.20",
-    "deepseek/deepseek-v3.2",
-    "qwen/qwen3.6-plus:free"
-  ],
+  "models": ["google/gemini-3.1-pro-preview", "openai/gpt-5.4", "anthropic/claude-opus-4.6"],
   "chairmanModel": "anthropic/claude-opus-4.6",
   "sequentialThinking": true,
   "webSearch": true,
-  "deepResearch": true
+  "deepResearch": true,
+  "lenses": [
+    {
+      "name": "Risk scan",
+      "prompt": "most likely failure mode? most expensive failure mode? same or different?"
+    },
+    {
+      "name": "Opportunity map",
+      "prompt": "adjacent upside user isn't seeing? what if this works 3x better? what would a competitor do if they knew?"
+    },
+    {
+      "name": "Execution audit",
+      "prompt": "fastest path to test with real data? actual bottleneck? minimum viable test?"
+    },
+    {
+      "name": "Assumption check",
+      "prompt": "what is user assuming without stating? what changes if wrong? are they solving the right problem?"
+    }
+  ]
 }
