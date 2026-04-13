@@ -8,6 +8,7 @@ import {
   ScrollBoxRenderable,
   SyntaxStyle,
   RGBA,
+  KeyEvent,
 } from "@opentui/core";
 import { Config, Layer, ManagedRuntime, pipe } from "effect";
 import { FetchHttpClient } from "effect/unstable/http";
@@ -107,19 +108,23 @@ async function main() {
     }
   }
 
-  renderer.keyInput.on("keypress", (key) => {
-    if (key.name !== "c") return;
-    const isCopyShortcut = process.platform === "darwin" ? key.meta : key.ctrl;
-    if (!isCopyShortcut) return;
+  // eslint-disable-next-line -- EventEmitter.on inherited but not resolved by oxlint
+  (renderer.keyInput as unknown as import("events").EventEmitter).on(
+    "keypress",
+    (key: KeyEvent) => {
+      if (key.name !== "c") return;
+      const isCopyShortcut = process.platform === "darwin" ? key.meta : key.ctrl;
+      if (!isCopyShortcut) return;
 
-    const selection = renderer.getSelection();
-    const text = selection?.getSelectedText();
-    if (!text) return;
+      const selection = renderer.getSelection();
+      const text = selection?.getSelectedText();
+      if (!text) return;
 
-    key.preventDefault();
-    key.stopPropagation();
-    copyToClipboard(text);
-  });
+      key.preventDefault();
+      key.stopPropagation();
+      copyToClipboard(text);
+    },
+  );
 
   let modeIndex = 0;
   let singleModelIndex = 0;
