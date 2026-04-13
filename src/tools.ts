@@ -22,13 +22,13 @@ export const WebSearch = Tool.make("webSearch", {
   description: "Search the web for current information, news, or facts.",
   parameters: Schema.Struct({
     query: Schema.String,
-    numResults: Schema.optionalKey(Schema.Number),
+    numResults: Schema.optionalKey(Schema.NullOr(Schema.Number)),
   }),
   success: Schema.Array(
     Schema.Struct({
       title: Schema.String,
       url: Schema.String,
-      highlights: Schema.optionalKey(Schema.Array(Schema.String)),
+      highlights: Schema.optionalKey(Schema.NullOr(Schema.Array(Schema.String))),
     }),
   ),
 }).annotate(Tool.Strict, false);
@@ -42,7 +42,7 @@ export const CrawlPages = Tool.make("crawlPages", {
     Schema.Struct({
       title: Schema.String,
       url: Schema.String,
-      text: Schema.optionalKey(Schema.String),
+      text: Schema.optionalKey(Schema.NullOr(Schema.String)),
     }),
   ),
 }).annotate(Tool.Strict, false);
@@ -54,11 +54,11 @@ export const SequentialThinking = Tool.make("sequentialThinking", {
     nextThoughtNeeded: Schema.Boolean,
     thoughtNumber: Schema.Number,
     totalThoughts: Schema.Number,
-    isRevision: Schema.optionalKey(Schema.Boolean),
-    revisesThought: Schema.optionalKey(Schema.Number),
-    branchFromThought: Schema.optionalKey(Schema.Number),
-    branchId: Schema.optionalKey(Schema.String),
-    needsMoreThoughts: Schema.optionalKey(Schema.Boolean),
+    isRevision: Schema.optionalKey(Schema.NullOr(Schema.Boolean)),
+    revisesThought: Schema.optionalKey(Schema.NullOr(Schema.Number)),
+    branchFromThought: Schema.optionalKey(Schema.NullOr(Schema.Number)),
+    branchId: Schema.optionalKey(Schema.NullOr(Schema.String)),
+    needsMoreThoughts: Schema.optionalKey(Schema.NullOr(Schema.Boolean)),
   }),
   success: Schema.Struct({
     thoughtNumber: Schema.Number,
@@ -75,11 +75,11 @@ interface ThoughtData {
   thought: string;
   thoughtNumber: number;
   totalThoughts: number;
-  isRevision?: boolean;
-  revisesThought?: number;
-  branchFromThought?: number;
-  branchId?: string;
-  needsMoreThoughts?: boolean;
+  isRevision?: boolean | null;
+  revisesThought?: number | null;
+  branchFromThought?: number | null;
+  branchId?: string | null;
+  needsMoreThoughts?: boolean | null;
   nextThoughtNeeded: boolean;
 }
 
@@ -116,8 +116,8 @@ function shouldReset(input: ThoughtData): boolean {
   return (
     input.thoughtNumber === 1 &&
     input.isRevision !== true &&
-    input.revisesThought === undefined &&
-    input.branchFromThought === undefined
+    input.revisesThought == null &&
+    input.branchFromThought == null
   );
 }
 
@@ -137,7 +137,7 @@ export const ToolHandlersLive = AllToolsToolkit.toLayer({
     exa && config.webSearch
       ? wrapExaCall("search", () =>
           exa.search(params.query, {
-            numResults: params.numResults,
+            numResults: params.numResults ?? undefined,
             contents: { highlights: true },
           }),
         ).pipe(
