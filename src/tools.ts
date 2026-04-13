@@ -31,7 +31,7 @@ export const WebSearch = Tool.make("webSearch", {
       highlights: Schema.optionalKey(Schema.Array(Schema.String)),
     }),
   ),
-});
+}).annotate(Tool.Strict, false);
 
 export const CrawlPages = Tool.make("crawlPages", {
   description: "Get full text content of specific web pages.",
@@ -45,7 +45,7 @@ export const CrawlPages = Tool.make("crawlPages", {
       text: Schema.optionalKey(Schema.String),
     }),
   ),
-});
+}).annotate(Tool.Strict, false);
 
 export const SequentialThinking = Tool.make("sequentialThinking", {
   description: "Structured step-by-step reasoning with revisions and branches.",
@@ -67,7 +67,7 @@ export const SequentialThinking = Tool.make("sequentialThinking", {
     branches: Schema.Array(Schema.String),
     thoughtHistoryLength: Schema.Number,
   }),
-});
+}).annotate(Tool.Strict, false);
 
 export const AllToolsToolkit = Toolkit.make(WebSearch, CrawlPages, SequentialThinking);
 
