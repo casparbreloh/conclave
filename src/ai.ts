@@ -1,10 +1,10 @@
+import { OpenRouterLanguageModel } from "@effect/ai-openrouter";
 import { Effect } from "effect";
 import { AiError, LanguageModel } from "effect/unstable/ai";
-import { OpenRouterLanguageModel } from "@effect/ai-openrouter";
 
 import { config } from "./config";
-import { AllToolsToolkit } from "./tools";
 import { buildAgentPrompt, buildChairmanPrompt } from "./prompts";
+import { AllToolsToolkit } from "./tools";
 
 export interface Message {
   role: "user" | "assistant" | "system";
@@ -23,11 +23,7 @@ export interface ConclaveCallbacks {
   onChairmanComplete: () => void;
 }
 
-export const single = (
-  modelId: string,
-  messages: Message[],
-  conclave: boolean = false,
-) =>
+export const single = (modelId: string, messages: Message[], conclave: boolean = false) =>
   Effect.gen(function* () {
     const systemMessage: Message = { role: "system", content: buildAgentPrompt(conclave) };
     const response = yield* LanguageModel.generateText({

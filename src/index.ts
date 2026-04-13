@@ -1,3 +1,4 @@
+import { OpenRouterClient } from "@effect/ai-openrouter";
 import {
   createCliRenderer,
   BoxRenderable,
@@ -8,14 +9,13 @@ import {
   SyntaxStyle,
   RGBA,
 } from "@opentui/core";
-import { ManagedRuntime } from "effect";
-import Exa from "exa-js";
+import { Config, Layer, ManagedRuntime, pipe } from "effect";
+import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
 
 import { conclave, single, type Message } from "./ai";
 import { config } from "./config";
-import { hasExaApiKey } from "./exa";
-import { OpenRouterServiceLive } from "./openrouter";
-import { getEnabledTools } from "./tools";
+import { ExaServiceLive } from "./exa";
+import { ToolHandlersLive } from "./tools";
 
 const COLORS = {
   text: "#e6edf3",
@@ -51,10 +51,20 @@ function nextId(prefix: string) {
   return `${prefix}-${++msgId}`;
 }
 
+// Layer composition
+const OpenRouterClientLive = OpenRouterClient.layerConfig({
+  apiKey: Config.redacted("OPENROUTER_API_KEY"),
+});
+
+const ToolHandlersWithExa = pipe(ToolHandlersLive, Layer.provide(ExaServiceLive));
+
+const AppLive = pipe(
+  Layer.mergeAll(OpenRouterClientLive, ToolHandlersWithExa),
+  Layer.provide(FetchHttpClient.layer),
+);
+
 async function main() {
-  const runtime = ManagedRuntime.make(OpenRouterServiceLive);
-  const exaClient = hasExaApiKey ? new Exa() : null;
-  const enabledTools = getEnabledTools(config, exaClient);
+  const runtime = ManagedRuntime.make(AppLive);
 
   const activeIntervals = new Set<ReturnType<typeof setInterval>>();
   let liveRequested = false;
@@ -303,7 +313,7 @@ async function main() {
       if (mode === "conclave") {
         answer = await handleConclave(responseBox, thinkingText, spinnerAnim);
       } else {
-        answer = await runtime.runPromise(single(mode, history, enabledTools));
+        answer = await runtime.runPromise(single(mode, history));
         clearTrackedInterval(spinnerAnim);
       }
 
@@ -378,7 +388,7 @@ async function main() {
 
     try {
       return await runtime.runPromise(
-        conclave(history, enabledTools, {
+        conclave(history, {
           onModelComplete: (modelId) => {
             const anim = animMap.get(modelId);
             if (anim) clearTrackedInterval(anim);

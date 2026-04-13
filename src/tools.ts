@@ -182,8 +182,7 @@ export const ToolHandlersLive = AllToolsToolkit.toLayer(
           type: params.mode,
         }),
 
-      sequentialThinking: (params) =>
-        Effect.succeed(getStore(params).processThought(params)),
+      sequentialThinking: (params) => Effect.succeed(getStore(params).processThought(params)),
     };
   }),
 );

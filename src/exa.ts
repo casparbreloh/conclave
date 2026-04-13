@@ -1,8 +1,8 @@
 import { Context, Effect, Layer } from "effect";
 import { AiError } from "effect/unstable/ai";
+import * as Headers from "effect/unstable/http/Headers";
 import * as HttpBody from "effect/unstable/http/HttpBody";
 import * as HttpClient from "effect/unstable/http/HttpClient";
-import * as Headers from "effect/unstable/http/Headers";
 
 export const hasExaApiKey = Boolean(process.env.EXA_API_KEY);
 
