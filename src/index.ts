@@ -10,7 +10,7 @@ import {
   RGBA,
 } from "@opentui/core";
 import { Config, Layer, ManagedRuntime, pipe } from "effect";
-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
+import { FetchHttpClient } from "effect/unstable/http";
 
 import { conclave, single, type Message } from "./ai";
 import { config } from "./config";
@@ -51,15 +51,12 @@ function nextId(prefix: string) {
   return `${prefix}-${++msgId}`;
 }
 
-// Layer composition
 const OpenRouterClientLive = OpenRouterClient.layerConfig({
   apiKey: Config.redacted("OPENROUTER_API_KEY"),
 });
 
-const ToolHandlersWithExa = pipe(ToolHandlersLive, Layer.provide(ExaServiceLive));
-
 const AppLive = pipe(
-  Layer.mergeAll(OpenRouterClientLive, ToolHandlersWithExa),
+  Layer.mergeAll(OpenRouterClientLive, pipe(ToolHandlersLive, Layer.provide(ExaServiceLive))),
   Layer.provide(FetchHttpClient.layer),
 );
 

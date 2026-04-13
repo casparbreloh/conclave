@@ -2,11 +2,7 @@ import { Effect, Schema } from "effect";
 import { Tool, Toolkit } from "effect/unstable/ai";
 
 import { config } from "./config";
-import { ExaService, hasExaApiKey } from "./exa";
-
-// ---------------------------------------------------------------------------
-// Tool definitions
-// ---------------------------------------------------------------------------
+import { ExaService, hasExaApiKey, wrapExaCall } from "./exa";
 
 export const WebSearch = Tool.make("webSearch", {
   description: "Search the web for current information, news, or facts.",
@@ -79,20 +75,12 @@ export const SequentialThinking = Tool.make("sequentialThinking", {
   }),
 });
 
-// ---------------------------------------------------------------------------
-// Toolkit
-// ---------------------------------------------------------------------------
-
 export const AllToolsToolkit = Toolkit.make(
   WebSearch,
   CrawlPages,
   DeepResearch,
   SequentialThinking,
 );
-
-// ---------------------------------------------------------------------------
-// Sequential thinking store (ported from src/tools/sequential-thinking.ts)
-// ---------------------------------------------------------------------------
 
 interface ThoughtData {
   thought: string;
@@ -153,39 +141,64 @@ function getStore(input: ThoughtData): SequentialThinkingStore {
   return currentStore;
 }
 
-// ---------------------------------------------------------------------------
-// Handler layer
-// ---------------------------------------------------------------------------
-
 export const ToolHandlersLive = AllToolsToolkit.toLayer(
   Effect.gen(function* () {
-    const exa = yield* ExaService;
+    const { client: exa } = yield* ExaService;
 
     return {
       webSearch: (params) =>
         config.webSearch && hasExaApiKey
-          ? exa
-              .search(params.query, {
+          ? wrapExaCall("search", () =>
+              exa.search(params.query, {
                 numResults: params.numResults,
                 contents: { highlights: true },
-              })
-              .pipe(Effect.map((r) => r.results))
+              }),
+            ).pipe(
+              Effect.map((r) =>
+                r.results.map((entry) => ({
+                  title: entry.title ?? "",
+                  url: entry.url,
+                  highlights: entry.highlights,
+                })),
+              ),
+            )
           : Effect.succeed([]),
 
       crawlPages: (params) =>
         config.webSearch && hasExaApiKey
-          ? exa
-              .getContents(params.urls, { text: true, livecrawl: "always" })
-              .pipe(Effect.map((r) => r.results))
+          ? wrapExaCall("getContents", () =>
+              exa.getContents(params.urls as string[], { text: true, livecrawl: "always" }),
+            ).pipe(
+              Effect.map((r) =>
+                r.results.map((entry) => ({
+                  title: entry.title ?? "",
+                  url: entry.url,
+                  text: entry.text ?? undefined,
+                })),
+              ),
+            )
           : Effect.succeed([]),
 
       deepResearch: (params) =>
         config.deepResearch && hasExaApiKey
-          ? exa.search(params.query, {
-              numResults: params.numResults,
-              contents: { highlights: true, text: true },
-              type: params.mode,
-            })
+          ? wrapExaCall("search", () =>
+              exa.search(params.query, {
+                numResults: params.numResults,
+                type: params.mode as "deep" | "deep-reasoning" | undefined,
+              }),
+            ).pipe(
+              Effect.map((r) => ({
+                results: r.results.map((entry) => ({
+                  title: entry.title ?? "",
+                  url: entry.url,
+                  highlights:
+                    "highlights" in entry ? (entry.highlights as readonly string[]) : undefined,
+                  text: entry.text ?? undefined,
+                })),
+                output:
+                  typeof r.output?.content === "string" ? { content: r.output.content } : undefined,
+              })),
+            )
           : Effect.succeed({ results: [] }),
 
       sequentialThinking: (params) =>
