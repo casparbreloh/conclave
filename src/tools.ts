@@ -167,7 +167,7 @@ export const ToolHandlersLive = AllToolsToolkit.toLayer(
       crawlPages: (params) =>
         config.webSearch && hasExaApiKey
           ? wrapExaCall("getContents", () =>
-              exa.getContents(params.urls as string[], { text: true, livecrawl: "always" }),
+              exa.getContents([...params.urls], { text: true, livecrawl: "always" }),
             ).pipe(
               Effect.map((r) =>
                 r.results.map((entry) => ({
@@ -184,7 +184,7 @@ export const ToolHandlersLive = AllToolsToolkit.toLayer(
           ? wrapExaCall("search", () =>
               exa.search(params.query, {
                 numResults: params.numResults,
-                type: params.mode as "deep" | "deep-reasoning" | undefined,
+                type: params.mode,
               }),
             ).pipe(
               Effect.map((r) => ({
