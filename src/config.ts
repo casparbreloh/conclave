@@ -7,7 +7,6 @@ export const configSchema = Schema.Struct({
   chairmanModel: Schema.String,
   sequentialThinking: Schema.Boolean,
   webSearch: Schema.Boolean,
-  deepResearch: Schema.Boolean,
   lenses: Schema.NonEmptyArray(
     Schema.Struct({
       name: Schema.String,

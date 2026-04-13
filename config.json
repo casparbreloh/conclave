@@ -3,7 +3,6 @@
   "chairmanModel": "anthropic/claude-opus-4.6",
   "sequentialThinking": true,
   "webSearch": true,
-  "deepResearch": true,
   "lenses": [
     {
       "name": "Blind spots",

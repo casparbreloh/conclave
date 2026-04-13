@@ -1,7 +1,7 @@
 # Conclave
 
 Conclave is a terminal AI council: multiple models answer in parallel, then a chairman model synthesizes one final response.
-It is built for fast, grounded answers with optional web and deep research tools.
+It is built for fast, grounded answers with optional web research tools.
 
 ## Quickstart
 
@@ -20,4 +20,3 @@ Runtime config lives at the repo root in `config.json`.
 - `chairmanModel`: model used for synthesis
 - `sequentialThinking`: enable/disable the native sequential thinking tool
 - `webSearch`: enable/disable `webSearch` + `crawlPages`
-- `deepResearch`: enable/disable Exa Deep tool
