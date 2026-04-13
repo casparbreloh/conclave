@@ -1,20 +1,24 @@
-import { stepCountIs } from "@openrouter/sdk";
-import type { Tool } from "@openrouter/sdk";
 import { Effect } from "effect";
+import { AiError, LanguageModel } from "effect/unstable/ai";
+import { OpenRouterLanguageModel } from "@effect/ai-openrouter";
 
 import { config } from "./config";
-import { AllModelsFailedError, ModelCallError } from "./errors";
-import { OpenRouterService } from "./openrouter";
-import type { Message } from "./openrouter";
+import { AllToolsToolkit } from "./tools";
 import { buildAgentPrompt, buildChairmanPrompt } from "./prompts";
 
-export type { Message } from "./openrouter";
+export interface Message {
+  role: "user" | "assistant" | "system";
+  content: string;
+}
 
-const MAX_AGENT_STEPS = 25;
+interface ModelError {
+  modelId: string;
+  error: AiError.AiError;
+}
 
 export interface ConclaveCallbacks {
   onModelComplete: (modelId: string) => void;
-  onModelError: (modelId: string, error: ModelCallError) => void;
+  onModelError: (modelId: string, error: AiError.AiError) => void;
   onChairmanStart: () => void;
   onChairmanComplete: () => void;
 }
@@ -22,73 +26,54 @@ export interface ConclaveCallbacks {
 export const single = (
   modelId: string,
   messages: Message[],
-  enabledTools: Tool[],
   conclave: boolean = false,
 ) =>
   Effect.gen(function* () {
-    const svc = yield* OpenRouterService;
-    const sessionId = crypto.randomUUID();
+    const systemMessage: Message = { role: "system", content: buildAgentPrompt(conclave) };
+    const response = yield* LanguageModel.generateText({
+      prompt: [systemMessage, ...messages],
+      toolkit: AllToolsToolkit,
+    });
+    return response.text;
+  }).pipe(Effect.provide(OpenRouterLanguageModel.model(modelId)));
 
-    const result = yield* svc
-      .callModel({
-        model: modelId,
-        sessionId,
-        instructions: buildAgentPrompt(conclave),
-        input: messages,
-        tools: enabledTools.length > 0 ? enabledTools : undefined,
-        stopWhen: stepCountIs(MAX_AGENT_STEPS),
-      })
-      .pipe(
-        Effect.catchTag("ModelCallError", (err) => {
-          const msg = err.cause instanceof Error ? err.cause.message : String(err.cause);
-          if (enabledTools.length > 0 && /no endpoints found that support tool use/i.test(msg)) {
-            return svc.callModel({
-              model: modelId,
-              sessionId: crypto.randomUUID(),
-              instructions: buildAgentPrompt(conclave),
-              input: messages,
-            });
-          }
-          return Effect.fail(err);
-        }),
-      );
-
-    return result;
-  });
-
-export const conclave = (messages: Message[], enabledTools: Tool[], callbacks: ConclaveCallbacks) =>
+export const conclave = (messages: Message[], callbacks: ConclaveCallbacks) =>
   Effect.gen(function* () {
-    const svc = yield* OpenRouterService;
-
     const [failures, successes] = yield* Effect.partition(
       config.models,
       (modelId) =>
-        single(modelId, messages, enabledTools, true).pipe(
+        single(modelId, messages, true).pipe(
+          Effect.mapError((error): ModelError => ({ modelId, error })),
           Effect.tap(() => Effect.sync(() => callbacks.onModelComplete(modelId))),
           Effect.map((text) => ({ modelId, text })),
         ),
       { concurrency: "unbounded" },
     );
 
-    for (const err of failures) {
-      const modelId = err.modelId;
-      callbacks.onModelError(modelId, err);
+    for (const { modelId, error } of failures) {
+      callbacks.onModelError(modelId, error);
     }
 
     if (successes.length === 0) {
-      return yield* Effect.fail(new AllModelsFailedError({ errors: failures }));
+      return yield* Effect.fail(
+        failures[0]?.error ??
+          AiError.make({
+            module: "Conclave",
+            method: "conclave",
+            reason: new AiError.UnknownError({ description: "All models failed" }),
+          }),
+      );
     }
 
     callbacks.onChairmanStart();
 
     const question = messages.findLast((m) => m.role === "user")?.content ?? "";
 
-    const text = yield* svc.callModel({
-      model: config.chairmanModel,
-      input: buildChairmanPrompt(question, successes),
-    });
+    const chairmanResponse = yield* LanguageModel.generateText({
+      prompt: buildChairmanPrompt(question, successes),
+    }).pipe(Effect.provide(OpenRouterLanguageModel.model(config.chairmanModel)));
 
     callbacks.onChairmanComplete();
 
-    return text;
+    return chairmanResponse.text;
   });
