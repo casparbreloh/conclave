@@ -69,11 +69,7 @@ export const SequentialThinking = Tool.make("sequentialThinking", {
   }),
 });
 
-export const AllToolsToolkit = Toolkit.make(
-  WebSearch,
-  CrawlPages,
-  SequentialThinking,
-);
+export const AllToolsToolkit = Toolkit.make(WebSearch, CrawlPages, SequentialThinking);
 
 interface ThoughtData {
   thought: string;
