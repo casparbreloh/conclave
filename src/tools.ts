@@ -22,13 +22,13 @@ export const WebSearch = Tool.make("webSearch", {
   description: "Search the web for current information, news, or facts.",
   parameters: Schema.Struct({
     query: Schema.String,
-    numResults: Schema.optional(Schema.Number),
+    numResults: Schema.optionalKey(Schema.Number),
   }),
   success: Schema.Array(
     Schema.Struct({
       title: Schema.String,
       url: Schema.String,
-      highlights: Schema.optional(Schema.Array(Schema.String)),
+      highlights: Schema.optionalKey(Schema.Array(Schema.String)),
     }),
   ),
 });
@@ -42,7 +42,7 @@ export const CrawlPages = Tool.make("crawlPages", {
     Schema.Struct({
       title: Schema.String,
       url: Schema.String,
-      text: Schema.optional(Schema.String),
+      text: Schema.optionalKey(Schema.String),
     }),
   ),
 });
@@ -54,11 +54,11 @@ export const SequentialThinking = Tool.make("sequentialThinking", {
     nextThoughtNeeded: Schema.Boolean,
     thoughtNumber: Schema.Number,
     totalThoughts: Schema.Number,
-    isRevision: Schema.optional(Schema.Boolean),
-    revisesThought: Schema.optional(Schema.Number),
-    branchFromThought: Schema.optional(Schema.Number),
-    branchId: Schema.optional(Schema.String),
-    needsMoreThoughts: Schema.optional(Schema.Boolean),
+    isRevision: Schema.optionalKey(Schema.Boolean),
+    revisesThought: Schema.optionalKey(Schema.Number),
+    branchFromThought: Schema.optionalKey(Schema.Number),
+    branchId: Schema.optionalKey(Schema.String),
+    needsMoreThoughts: Schema.optionalKey(Schema.Boolean),
   }),
   success: Schema.Struct({
     thoughtNumber: Schema.Number,
