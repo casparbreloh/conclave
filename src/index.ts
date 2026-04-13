@@ -109,8 +109,7 @@ async function main() {
 
   renderer.keyInput.on("keypress", (key) => {
     if (key.name !== "c") return;
-    const isCopyShortcut =
-      process.platform === "darwin" ? key.meta : key.ctrl;
+    const isCopyShortcut = process.platform === "darwin" ? key.meta : key.ctrl;
     if (!isCopyShortcut) return;
 
     const selection = renderer.getSelection();
