@@ -47,26 +47,6 @@ export const CrawlPages = Tool.make("crawlPages", {
   ),
 });
 
-export const DeepResearch = Tool.make("deepResearch", {
-  description: "Run deep search for complex multi-part research queries.",
-  parameters: Schema.Struct({
-    query: Schema.String,
-    mode: Schema.optional(Schema.Literals(["deep", "deep-reasoning"])),
-    numResults: Schema.optional(Schema.Number),
-  }),
-  success: Schema.Struct({
-    results: Schema.Array(
-      Schema.Struct({
-        title: Schema.String,
-        url: Schema.String,
-        highlights: Schema.optional(Schema.Array(Schema.String)),
-        text: Schema.optional(Schema.String),
-      }),
-    ),
-    output: Schema.optional(Schema.Struct({ content: Schema.String })),
-  }),
-});
-
 export const SequentialThinking = Tool.make("sequentialThinking", {
   description: "Structured step-by-step reasoning with revisions and branches.",
   parameters: Schema.Struct({
@@ -92,7 +72,6 @@ export const SequentialThinking = Tool.make("sequentialThinking", {
 export const AllToolsToolkit = Toolkit.make(
   WebSearch,
   CrawlPages,
-  DeepResearch,
   SequentialThinking,
 );
 
@@ -190,25 +169,6 @@ export const ToolHandlersLive = AllToolsToolkit.toLayer({
           ),
         )
       : Effect.succeed([]),
-
-  deepResearch: (params) =>
-    exa && config.deepResearch
-      ? wrapExaCall("search", () =>
-          exa.search(params.query, { numResults: params.numResults, type: params.mode }),
-        ).pipe(
-          Effect.map((r) => ({
-            results: r.results.map((entry) => ({
-              title: entry.title ?? "",
-              url: entry.url,
-              highlights:
-                "highlights" in entry ? (entry.highlights as readonly string[]) : undefined,
-              text: entry.text ?? undefined,
-            })),
-            output:
-              typeof r.output?.content === "string" ? { content: r.output.content } : undefined,
-          })),
-        )
-      : Effect.succeed({ results: [] }),
 
   sequentialThinking: (params) =>
     config.sequentialThinking
