@@ -11,17 +11,17 @@
   },
   "dependencies": {
     "@effect/ai-openrouter": "4.0.0-beta.48",
-    "@opentui/core": "^0.1.85",
+    "@opentui/core": "^0.1.98",
     "effect": "4.0.0-beta.48",
-    "exa-js": "^2.6.1"
+    "exa-js": "^2.11.0"
   },
   "devDependencies": {
-    "@types/bun": "^1.3.10",
-    "@typescript/native-preview": "^7.0.0-dev.20260331.1",
-    "oxfmt": "^0.36.0",
-    "oxlint": "^1.51.0",
-    "oxlint-tsgolint": "^0.18.1",
-    "typescript": "^5.9.3"
+    "@types/bun": "^1.3.12",
+    "@typescript/native-preview": "^7.0.0-dev.20260413.1",
+    "oxfmt": "^0.44.0",
+    "oxlint": "^1.59.0",
+    "oxlint-tsgolint": "^0.20.0",
+    "typescript": "^6.0.2"
   },
   "packageManager": "bun@1.3.11"
 }
