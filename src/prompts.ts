@@ -1,21 +1,18 @@
 import { config } from "./config";
-import { getEnabledToolLines } from "./tools";
 
-export function buildAgentPrompt(conclave: boolean = false): string {
-  const toolLines = getEnabledToolLines(config);
-
-  const diversity = `Think independently. Don't default to the safest or most conventional answer.
+const DIVERSITY = `Think independently. Don't default to the safest or most conventional answer.
 If you see a non-obvious angle or contrarian insight, include it — even if it goes against common wisdom.`;
 
-  const toolPolicy =
-    toolLines.length > 0
-      ? `\n\nYou have tools available:\n${toolLines.join("\n")}\n\nTool policy:\n- Use tools when the question requires current or uncertain information.\n- Keep tool usage efficient: do at most 10 tool calls for a single user request.\n- If you already know the answer confidently and it is not time-sensitive, answer directly.`
-      : "";
+const TOOL_POLICY = `\n\nTool policy:
+- Use tools when the question requires current or uncertain information.
+- Keep tool usage efficient: do at most 10 tool calls for a single user request.
+- If you already know the answer confidently and it is not time-sensitive, answer directly.`;
 
+export function buildAgentPrompt(conclave: boolean = false): string {
   if (!conclave) {
     return `You are a knowledgeable AI assistant. Answer questions accurately and concisely.
 
-${diversity}${toolPolicy}`;
+${DIVERSITY}${TOOL_POLICY}`;
   }
 
   const verbalizedSampling = `## Analytical Approach
@@ -38,11 +35,11 @@ ${lensLines}`;
 
   return `You are a knowledgeable AI assistant. Answer questions accurately and concisely.
 
-${diversity}
+${DIVERSITY}
 
 ${verbalizedSampling}
 
-${lenses}${toolPolicy}`;
+${lenses}${TOOL_POLICY}`;
 }
 
 export function buildChairmanPrompt(
