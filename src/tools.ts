@@ -1,7 +1,7 @@
 import { Effect, Schema } from "effect";
 import { Tool, Toolkit } from "effect/unstable/ai";
 
-import type { Config } from "./config";
+import { config } from "./config";
 import { ExaService, hasExaApiKey } from "./exa";
 
 // ---------------------------------------------------------------------------
@@ -163,39 +163,41 @@ export const ToolHandlersLive = AllToolsToolkit.toLayer(
 
     return {
       webSearch: (params) =>
-        exa
-          .search(params.query, {
-            numResults: params.numResults,
-            contents: { highlights: true },
-          })
-          .pipe(Effect.map((r) => r.results)),
+        config.webSearch && hasExaApiKey
+          ? exa
+              .search(params.query, {
+                numResults: params.numResults,
+                contents: { highlights: true },
+              })
+              .pipe(Effect.map((r) => r.results))
+          : Effect.succeed([]),
 
       crawlPages: (params) =>
-        exa
-          .getContents(params.urls, { text: true, livecrawl: "always" })
-          .pipe(Effect.map((r) => r.results)),
+        config.webSearch && hasExaApiKey
+          ? exa
+              .getContents(params.urls, { text: true, livecrawl: "always" })
+              .pipe(Effect.map((r) => r.results))
+          : Effect.succeed([]),
 
       deepResearch: (params) =>
-        exa.search(params.query, {
-          numResults: params.numResults,
-          contents: { highlights: true, text: true },
-          type: params.mode,
-        }),
+        config.deepResearch && hasExaApiKey
+          ? exa.search(params.query, {
+              numResults: params.numResults,
+              contents: { highlights: true, text: true },
+              type: params.mode,
+            })
+          : Effect.succeed({ results: [] }),
 
-      sequentialThinking: (params) => Effect.succeed(getStore(params).processThought(params)),
+      sequentialThinking: (params) =>
+        config.sequentialThinking
+          ? Effect.succeed(getStore(params).processThought(params))
+          : Effect.succeed({
+              thoughtNumber: params.thoughtNumber,
+              totalThoughts: params.totalThoughts,
+              nextThoughtNeeded: false,
+              branches: [],
+              thoughtHistoryLength: 0,
+            }),
     };
   }),
 );
-
-// ---------------------------------------------------------------------------
-// Build active tools based on config
-// ---------------------------------------------------------------------------
-
-export function getActiveTools(config: Config): ReadonlyArray<Tool.Any> {
-  const tools: Tool.Any[] = [];
-  if (config.webSearch && hasExaApiKey) tools.push(WebSearch);
-  if (hasExaApiKey) tools.push(CrawlPages);
-  if (config.deepResearch && hasExaApiKey) tools.push(DeepResearch);
-  if (config.sequentialThinking) tools.push(SequentialThinking);
-  return tools;
-}
