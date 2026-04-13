@@ -31,7 +31,7 @@ export interface ExaService {
   ) => Effect.Effect<ExaSearchResult, AiError.AiError>;
 
   readonly getContents: (
-    urls: string[],
+    urls: readonly string[],
     opts: {
       text?: boolean;
       livecrawl?: string;
