@@ -1,3 +1,4 @@
+import { OpenRouterClient } from "@effect/ai-openrouter";
 import {
   createCliRenderer,
   BoxRenderable,
@@ -8,9 +9,12 @@ import {
   SyntaxStyle,
   RGBA,
 } from "@opentui/core";
+import { Config, Layer, ManagedRuntime, pipe } from "effect";
+import { FetchHttpClient } from "effect/unstable/http";
 
 import { conclave, single, type Message } from "./ai";
 import { config } from "./config";
+import { ToolHandlersLive } from "./tools";
 
 const COLORS = {
   text: "#e6edf3",
@@ -46,7 +50,18 @@ function nextId(prefix: string) {
   return `${prefix}-${++msgId}`;
 }
 
+const OpenRouterClientLive = OpenRouterClient.layerConfig({
+  apiKey: Config.redacted("OPENROUTER_API_KEY"),
+});
+
+const AppLive = pipe(
+  Layer.mergeAll(OpenRouterClientLive, ToolHandlersLive),
+  Layer.provide(FetchHttpClient.layer),
+);
+
 async function main() {
+  const runtime = ManagedRuntime.make(AppLive);
+
   const activeIntervals = new Set<ReturnType<typeof setInterval>>();
   let liveRequested = false;
 
@@ -72,12 +87,29 @@ async function main() {
     useAlternateScreen: true,
     useMouse: true,
     useKittyKeyboard: {},
-    onDestroy: cleanupLiveAndIntervals,
+    onDestroy: () => {
+      cleanupLiveAndIntervals();
+      void runtime.dispose();
+    },
   });
+
+  function copyToClipboard(text: string) {
+    if (process.platform === "darwin") {
+      try {
+        const proc = Bun.spawn(["pbcopy"], { stdin: "pipe" });
+        void proc.stdin.write(text);
+        void proc.stdin.end();
+      } catch {
+        renderer.copyToClipboardOSC52(text);
+      }
+    } else {
+      renderer.copyToClipboardOSC52(text);
+    }
+  }
 
   renderer.on("selection", (selection) => {
     const text = selection.getSelectedText();
-    if (text) renderer.copyToClipboardOSC52(text);
+    if (text) copyToClipboard(text);
   });
 
   let modeIndex = 0;
@@ -277,7 +309,7 @@ async function main() {
       if (mode === "conclave") {
         answer = await handleConclave(responseBox, thinkingText, spinnerAnim);
       } else {
-        answer = await single(mode, history);
+        answer = await runtime.runPromise(single(mode, history));
         clearTrackedInterval(spinnerAnim);
       }
 
@@ -351,36 +383,38 @@ async function main() {
     responseBox.add(deliberationBox);
 
     try {
-      return await conclave(history, {
-        onModelComplete: (modelId) => {
-          const anim = animMap.get(modelId);
-          if (anim) clearTrackedInterval(anim);
-          const t = statusMap.get(modelId);
-          if (t) {
-            t.content = `  ${formatModelName(modelId)} ✓`;
-            t.fg = COLORS.dim;
-          }
-        },
-        onModelError: (modelId, _error) => {
-          const anim = animMap.get(modelId);
-          if (anim) clearTrackedInterval(anim);
-          const t = statusMap.get(modelId);
-          if (t) {
-            t.content = `  ${formatModelName(modelId)} ✗`;
-            t.fg = "#f85149";
-          }
-        },
-        onChairmanStart: () => {
-          chairmanStatus.fg = COLORS.dim;
-          animMap.set("chairman", animateSpinner(chairmanStatus, chairmanLabel, "  "));
-        },
-        onChairmanComplete: () => {
-          const anim = animMap.get("chairman");
-          if (anim) clearTrackedInterval(anim);
-          chairmanStatus.content = `  ${chairmanLabel} ✓`;
-          chairmanStatus.fg = COLORS.dim;
-        },
-      });
+      return await runtime.runPromise(
+        conclave(history, {
+          onModelComplete: (modelId) => {
+            const anim = animMap.get(modelId);
+            if (anim) clearTrackedInterval(anim);
+            const t = statusMap.get(modelId);
+            if (t) {
+              t.content = `  ${formatModelName(modelId)} ✓`;
+              t.fg = COLORS.dim;
+            }
+          },
+          onModelError: (modelId, _error) => {
+            const anim = animMap.get(modelId);
+            if (anim) clearTrackedInterval(anim);
+            const t = statusMap.get(modelId);
+            if (t) {
+              t.content = `  ${formatModelName(modelId)} ✗`;
+              t.fg = "#f85149";
+            }
+          },
+          onChairmanStart: () => {
+            chairmanStatus.fg = COLORS.dim;
+            animMap.set("chairman", animateSpinner(chairmanStatus, chairmanLabel, "  "));
+          },
+          onChairmanComplete: () => {
+            const anim = animMap.get("chairman");
+            if (anim) clearTrackedInterval(anim);
+            chairmanStatus.content = `  ${chairmanLabel} ✓`;
+            chairmanStatus.fg = COLORS.dim;
+          },
+        }),
+      );
     } finally {
       for (const anim of animMap.values()) {
         clearTrackedInterval(anim);

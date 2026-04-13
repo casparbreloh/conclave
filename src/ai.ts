@@ -1,92 +1,75 @@
-import { stepCountIs } from "@openrouter/sdk";
+import { OpenRouterLanguageModel } from "@effect/ai-openrouter";
+import { Effect } from "effect";
+import { AiError, LanguageModel } from "effect/unstable/ai";
 
 import { config } from "./config";
-import { openrouter } from "./openrouter";
 import { buildAgentPrompt, buildChairmanPrompt } from "./prompts";
-import { getEnabledTools } from "./tools";
-
-const MAX_AGENT_STEPS = 25;
+import { AllToolsToolkit } from "./tools";
 
 export interface Message {
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   content: string;
+}
+
+interface ModelError {
+  modelId: string;
+  error: AiError.AiError;
 }
 
 export interface ConclaveCallbacks {
   onModelComplete: (modelId: string) => void;
-  onModelError: (modelId: string, error: Error) => void;
+  onModelError: (modelId: string, error: AiError.AiError) => void;
   onChairmanStart: () => void;
   onChairmanComplete: () => void;
 }
 
-export async function single(
-  modelId: string,
-  messages: Message[],
-  conclave: boolean = false,
-): Promise<string> {
-  const enabledTools = getEnabledTools();
-  const sessionId = crypto.randomUUID();
-
-  try {
-    const result = openrouter.callModel({
-      model: modelId,
-      sessionId,
-      instructions: buildAgentPrompt(conclave),
-      input: messages,
-      tools: enabledTools.length > 0 ? enabledTools : undefined,
-      stopWhen: stepCountIs(MAX_AGENT_STEPS),
+export const single = (modelId: string, messages: Message[], conclave: boolean = false) =>
+  Effect.gen(function* () {
+    const systemMessage: Message = { role: "system", content: buildAgentPrompt(conclave) };
+    const response = yield* LanguageModel.generateText({
+      prompt: [systemMessage, ...messages],
+      toolkit: AllToolsToolkit,
     });
-    return await result.getText();
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    if (enabledTools.length > 0 && /no endpoints found that support tool use/i.test(msg)) {
-      const result = openrouter.callModel({
-        model: modelId,
-        sessionId: crypto.randomUUID(),
-        instructions: buildAgentPrompt(conclave),
-        input: messages,
-      });
-      return await result.getText();
+    return response.text;
+  }).pipe(Effect.provide(OpenRouterLanguageModel.model(modelId)));
+
+export const conclave = (messages: Message[], callbacks: ConclaveCallbacks) =>
+  Effect.gen(function* () {
+    const [failures, successes] = yield* Effect.partition(
+      config.models,
+      (modelId) =>
+        single(modelId, messages, true).pipe(
+          Effect.mapError((error): ModelError => ({ modelId, error })),
+          Effect.tap(() => Effect.sync(() => callbacks.onModelComplete(modelId))),
+          Effect.map((text) => ({ modelId, text })),
+        ),
+      { concurrency: "unbounded" },
+    );
+
+    for (const { modelId, error } of failures) {
+      callbacks.onModelError(modelId, error);
     }
-    throw error;
-  }
-}
 
-export async function conclave(messages: Message[], callbacks: ConclaveCallbacks): Promise<string> {
-  const results = await Promise.allSettled(
-    config.models.map(async (modelId) => {
-      const text = await single(modelId, messages, true);
-      callbacks.onModelComplete(modelId);
-      return { modelId, text };
-    }),
-  );
-
-  const responses: { modelId: string; text: string }[] = [];
-  for (let i = 0; i < results.length; i++) {
-    const r = results[i]!;
-    if (r.status === "fulfilled") {
-      responses.push(r.value);
-    } else {
-      const modelId = config.models[i]!;
-      const err = r.reason instanceof Error ? r.reason : new Error(String(r.reason));
-      callbacks.onModelError(modelId, err);
+    if (successes.length === 0) {
+      return yield* Effect.fail(
+        failures[0]?.error ??
+          AiError.make({
+            module: "Conclave",
+            method: "conclave",
+            reason: new AiError.UnknownError({ description: "All models failed" }),
+          }),
+      );
     }
-  }
 
-  if (responses.length === 0) {
-    throw new Error("All models failed to respond");
-  }
+    callbacks.onChairmanStart();
 
-  callbacks.onChairmanStart();
+    const question = messages.findLast((m) => m.role === "user")?.content ?? "";
 
-  const question = messages.findLast((m) => m.role === "user")?.content ?? "";
-  const result = openrouter.callModel({
-    model: config.chairmanModel,
-    input: buildChairmanPrompt(question, responses),
+    const chairmanResponse = yield* LanguageModel.generateText({
+      prompt: buildChairmanPrompt(question, successes),
+    }).pipe(Effect.provide(OpenRouterLanguageModel.model(config.chairmanModel)));
+
+    callbacks.onChairmanComplete();
+
+    return chairmanResponse.text;
   });
-
-  const text = await result.getText();
-  callbacks.onChairmanComplete();
-
-  return text;
-}
