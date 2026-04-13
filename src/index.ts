@@ -107,9 +107,19 @@ async function main() {
     }
   }
 
-  renderer.on("selection", (selection) => {
-    const text = selection.getSelectedText();
-    if (text) copyToClipboard(text);
+  renderer.keyInput.on("keypress", (key) => {
+    if (key.name !== "c") return;
+    const isCopyShortcut =
+      process.platform === "darwin" ? key.meta : key.ctrl;
+    if (!isCopyShortcut) return;
+
+    const selection = renderer.getSelection();
+    const text = selection?.getSelectedText();
+    if (!text) return;
+
+    key.preventDefault();
+    key.stopPropagation();
+    copyToClipboard(text);
   });
 
   let modeIndex = 0;
