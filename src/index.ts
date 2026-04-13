@@ -14,7 +14,6 @@ import { FetchHttpClient } from "effect/unstable/http";
 
 import { conclave, single, type Message } from "./ai";
 import { config } from "./config";
-import { ExaServiceLive } from "./exa";
 import { ToolHandlersLive } from "./tools";
 
 const COLORS = {
@@ -56,7 +55,7 @@ const OpenRouterClientLive = OpenRouterClient.layerConfig({
 });
 
 const AppLive = pipe(
-  Layer.mergeAll(OpenRouterClientLive, pipe(ToolHandlersLive, Layer.provide(ExaServiceLive))),
+  Layer.mergeAll(OpenRouterClientLive, ToolHandlersLive),
   Layer.provide(FetchHttpClient.layer),
 );
 

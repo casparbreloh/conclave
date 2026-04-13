@@ -1,8 +1,22 @@
 import { Effect, Schema } from "effect";
-import { Tool, Toolkit } from "effect/unstable/ai";
+import { AiError, Tool, Toolkit } from "effect/unstable/ai";
+import Exa from "exa-js";
 
 import { config } from "./config";
-import { ExaService, hasExaApiKey, wrapExaCall } from "./exa";
+
+const hasExaApiKey = Boolean(process.env.EXA_API_KEY);
+
+function wrapExaCall<T>(method: string, fn: () => Promise<T>): Effect.Effect<T, AiError.AiError> {
+  return Effect.tryPromise({
+    try: fn,
+    catch: (error) =>
+      AiError.make({
+        module: "Exa",
+        method,
+        reason: new AiError.UnknownError({ description: String(error) }),
+      }),
+  });
+}
 
 export const WebSearch = Tool.make("webSearch", {
   description: "Search the web for current information, news, or facts.",
@@ -141,76 +155,69 @@ function getStore(input: ThoughtData): SequentialThinkingStore {
   return currentStore;
 }
 
-export const ToolHandlersLive = AllToolsToolkit.toLayer(
-  Effect.gen(function* () {
-    const { client: exa } = yield* ExaService;
+const exa = hasExaApiKey ? new Exa() : null;
 
-    return {
-      webSearch: (params) =>
-        config.webSearch && hasExaApiKey
-          ? wrapExaCall("search", () =>
-              exa.search(params.query, {
-                numResults: params.numResults,
-                contents: { highlights: true },
-              }),
-            ).pipe(
-              Effect.map((r) =>
-                r.results.map((entry) => ({
-                  title: entry.title ?? "",
-                  url: entry.url,
-                  highlights: entry.highlights,
-                })),
-              ),
-            )
-          : Effect.succeed([]),
+export const ToolHandlersLive = AllToolsToolkit.toLayer({
+  webSearch: (params) =>
+    exa && config.webSearch
+      ? wrapExaCall("search", () =>
+          exa.search(params.query, {
+            numResults: params.numResults,
+            contents: { highlights: true },
+          }),
+        ).pipe(
+          Effect.map((r) =>
+            r.results.map((entry) => ({
+              title: entry.title ?? "",
+              url: entry.url,
+              highlights: entry.highlights,
+            })),
+          ),
+        )
+      : Effect.succeed([]),
 
-      crawlPages: (params) =>
-        config.webSearch && hasExaApiKey
-          ? wrapExaCall("getContents", () =>
-              exa.getContents([...params.urls], { text: true, livecrawl: "always" }),
-            ).pipe(
-              Effect.map((r) =>
-                r.results.map((entry) => ({
-                  title: entry.title ?? "",
-                  url: entry.url,
-                  text: entry.text ?? undefined,
-                })),
-              ),
-            )
-          : Effect.succeed([]),
+  crawlPages: (params) =>
+    exa && config.webSearch
+      ? wrapExaCall("getContents", () =>
+          exa.getContents([...params.urls], { text: true, livecrawl: "always" }),
+        ).pipe(
+          Effect.map((r) =>
+            r.results.map((entry) => ({
+              title: entry.title ?? "",
+              url: entry.url,
+              text: entry.text ?? undefined,
+            })),
+          ),
+        )
+      : Effect.succeed([]),
 
-      deepResearch: (params) =>
-        config.deepResearch && hasExaApiKey
-          ? wrapExaCall("search", () =>
-              exa.search(params.query, {
-                numResults: params.numResults,
-                type: params.mode,
-              }),
-            ).pipe(
-              Effect.map((r) => ({
-                results: r.results.map((entry) => ({
-                  title: entry.title ?? "",
-                  url: entry.url,
-                  highlights:
-                    "highlights" in entry ? (entry.highlights as readonly string[]) : undefined,
-                  text: entry.text ?? undefined,
-                })),
-                output:
-                  typeof r.output?.content === "string" ? { content: r.output.content } : undefined,
-              })),
-            )
-          : Effect.succeed({ results: [] }),
+  deepResearch: (params) =>
+    exa && config.deepResearch
+      ? wrapExaCall("search", () =>
+          exa.search(params.query, { numResults: params.numResults, type: params.mode }),
+        ).pipe(
+          Effect.map((r) => ({
+            results: r.results.map((entry) => ({
+              title: entry.title ?? "",
+              url: entry.url,
+              highlights:
+                "highlights" in entry ? (entry.highlights as readonly string[]) : undefined,
+              text: entry.text ?? undefined,
+            })),
+            output:
+              typeof r.output?.content === "string" ? { content: r.output.content } : undefined,
+          })),
+        )
+      : Effect.succeed({ results: [] }),
 
-      sequentialThinking: (params) =>
-        config.sequentialThinking
-          ? Effect.succeed(getStore(params).processThought(params))
-          : Effect.succeed({
-              thoughtNumber: params.thoughtNumber,
-              totalThoughts: params.totalThoughts,
-              nextThoughtNeeded: false,
-              branches: [],
-              thoughtHistoryLength: 0,
-            }),
-    };
-  }),
-);
+  sequentialThinking: (params) =>
+    config.sequentialThinking
+      ? Effect.succeed(getStore(params).processThought(params))
+      : Effect.succeed({
+          thoughtNumber: params.thoughtNumber,
+          totalThoughts: params.totalThoughts,
+          nextThoughtNeeded: false,
+          branches: [],
+          thoughtHistoryLength: 0,
+        }),
+});
