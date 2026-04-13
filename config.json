@@ -5,20 +5,16 @@
   "webSearch": true,
   "lenses": [
     {
-      "name": "Risk scan",
-      "prompt": "most likely failure mode? most expensive failure mode? same or different?"
+      "name": "Blind spots",
+      "prompt": "what is being overlooked? what assumption, if wrong, changes everything?"
     },
     {
-      "name": "Opportunity map",
-      "prompt": "adjacent upside user isn't seeing? what if this works 3x better? what would a competitor do if they knew?"
+      "name": "Structure",
+      "prompt": "what's the right mental model? what's the simplest decomposition? what are the real dependencies?"
     },
     {
-      "name": "Execution audit",
-      "prompt": "fastest path to test with real data? actual bottleneck? minimum viable test?"
-    },
-    {
-      "name": "Assumption check",
-      "prompt": "what is user assuming without stating? what changes if wrong? are they solving the right problem?"
+      "name": "Inversion",
+      "prompt": "what does the opposite argument look like? what would make this trivially easy? what would make it impossible?"
     }
   ]
 }

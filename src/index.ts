@@ -84,7 +84,7 @@ async function main() {
 
   const renderer = await createCliRenderer({
     exitOnCtrlC: true,
-    useAlternateScreen: true,
+    screenMode: "alternate-screen",
     useMouse: true,
     useKittyKeyboard: {},
     onDestroy: () => {
