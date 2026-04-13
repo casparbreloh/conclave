@@ -5,6 +5,7 @@
     "": {
       "name": "conclave",
       "dependencies": {
+        "@effect/ai-openrouter": "4.0.0-beta.48",
         "@openrouter/sdk": "^0.9.11",
         "@opentui/core": "^0.1.85",
         "effect": "4.0.0-beta.48",
@@ -23,6 +24,8 @@
   },
   "packages": {
     "@dimforge/rapier2d-simd-compat": ["@dimforge/rapier2d-simd-compat@0.17.3", "", {}, "sha512-bijvwWz6NHsNj5e5i1vtd3dU2pDhthSaTUZSh14DUGGKJfw8eMnlWZsxwHBxB/a3AXVNDjL9abuHw1k9FGR+jg=="],
+
+    "@effect/ai-openrouter": ["@effect/ai-openrouter@4.0.0-beta.48", "", { "peerDependencies": { "effect": "^4.0.0-beta.48" } }, "sha512-yugxXonc7PaoPM8Cbl5u5GcIjdr33Mx44o0JW688SmJ/9G1nhOBiRIqQsentM+xuIkW9KmLemee52XCgXta0pw=="],
 
     "@jimp/core": ["@jimp/core@1.6.0", "", { "dependencies": { "@jimp/file-ops": "1.6.0", "@jimp/types": "1.6.0", "@jimp/utils": "1.6.0", "await-to-js": "^3.0.0", "exif-parser": "^0.1.12", "file-type": "^16.0.0", "mime": "3" } }, "sha512-EQQlKU3s9QfdJqiSrZWNTxBs3rKXgO2W+GxNXDtwchF3a4IqxDheFX1ti+Env9hdJXDiYLp2jTRjlxhPthsk8w=="],
 

@@ -10,6 +10,7 @@
     "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
+    "@effect/ai-openrouter": "4.0.0-beta.48",
     "@openrouter/sdk": "^0.9.11",
     "@opentui/core": "^0.1.85",
     "effect": "4.0.0-beta.48",
