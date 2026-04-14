@@ -1,87 +1,64 @@
-import { Effect, Schema } from "effect";
-import { AiError, Tool, Toolkit } from "effect/unstable/ai";
+import { tool, type Tool, type TurnContext } from "@openrouter/sdk";
 import Exa from "exa-js";
+import { z } from "zod";
 
 import { config } from "./config";
 
 const hasExaApiKey = Boolean(process.env.EXA_API_KEY);
+const exa = hasExaApiKey ? new Exa() : null;
 
-function wrapExaCall<T>(method: string, fn: () => Promise<T>): Effect.Effect<T, AiError.AiError> {
-  return Effect.tryPromise({
-    try: fn,
-    catch: (error) =>
-      AiError.make({
-        module: "Exa",
-        method,
-        reason: new AiError.UnknownError({ description: String(error) }),
-      }),
-  });
-}
-
-const NumberLike = Schema.Union([Schema.Number, Schema.NumberFromString]);
-
-export const WebSearch = Tool.make("webSearch", {
-  description: "Search the web for current information, news, or facts.",
-  parameters: Schema.Struct({
-    query: Schema.String,
-    numResults: Schema.optionalKey(Schema.NullOr(NumberLike)),
+const webSearch = tool({
+  name: "webSearch",
+  description:
+    "Search the web for current information, news, or facts. Use for anything time-sensitive, recent, or where your training data is likely outdated.",
+  inputSchema: z.object({
+    query: z.string().describe("The search query"),
+    numResults: z.number().optional().default(5).describe("Number of results to return"),
   }),
-  success: Schema.Array(
-    Schema.Struct({
-      title: Schema.String,
-      url: Schema.String,
-      highlights: Schema.optionalKey(Schema.NullOr(Schema.Array(Schema.String))),
-    }),
-  ),
-}).annotate(Tool.Strict, false);
+  execute: async ({ query, numResults }) => {
+    const { results } = await exa!.search(query, {
+      numResults,
+      contents: { highlights: true },
+    });
+    return results.map((r) => ({
+      title: r.title,
+      url: r.url,
+      highlights: r.highlights,
+    }));
+  },
+});
 
-export const CrawlPages = Tool.make("crawlPages", {
-  description: "Get full text content of specific web pages.",
-  parameters: Schema.Struct({
-    urls: Schema.Array(Schema.String),
+const crawlPages = tool({
+  name: "crawlPages",
+  description:
+    "Get full text content of specific web pages. Use after webSearch to dive deeper into relevant pages.",
+  inputSchema: z.object({
+    urls: z.array(z.string()).describe("URLs to extract content from"),
   }),
-  success: Schema.Array(
-    Schema.Struct({
-      title: Schema.String,
-      url: Schema.String,
-      text: Schema.optionalKey(Schema.NullOr(Schema.String)),
-    }),
-  ),
-}).annotate(Tool.Strict, false);
+  execute: async ({ urls }) => {
+    const { results } = await exa!.getContents(urls, {
+      text: true,
+      livecrawl: "always",
+    });
+    return results.map((r) => ({
+      title: r.title,
+      url: r.url,
+      text: r.text,
+    }));
+  },
+});
 
-export const SequentialThinking = Tool.make("sequentialThinking", {
-  description: "Structured step-by-step reasoning with revisions and branches.",
-  parameters: Schema.Struct({
-    thought: Schema.String,
-    nextThoughtNeeded: Schema.Boolean,
-    thoughtNumber: NumberLike,
-    totalThoughts: NumberLike,
-    isRevision: Schema.optionalKey(Schema.NullOr(Schema.Boolean)),
-    revisesThought: Schema.optionalKey(Schema.NullOr(NumberLike)),
-    branchFromThought: Schema.optionalKey(Schema.NullOr(NumberLike)),
-    branchId: Schema.optionalKey(Schema.NullOr(Schema.String)),
-    needsMoreThoughts: Schema.optionalKey(Schema.NullOr(Schema.Boolean)),
-  }),
-  success: Schema.Struct({
-    thoughtNumber: Schema.Number,
-    totalThoughts: Schema.Number,
-    nextThoughtNeeded: Schema.Boolean,
-    branches: Schema.Array(Schema.String),
-    thoughtHistoryLength: Schema.Number,
-  }),
-}).annotate(Tool.Strict, false);
-
-export const AllToolsToolkit = Toolkit.make(WebSearch, CrawlPages, SequentialThinking);
+// Sequential Thinking
 
 interface ThoughtData {
   thought: string;
   thoughtNumber: number;
   totalThoughts: number;
-  isRevision?: boolean | null;
-  revisesThought?: number | null;
-  branchFromThought?: number | null;
-  branchId?: string | null;
-  needsMoreThoughts?: boolean | null;
+  isRevision?: boolean;
+  revisesThought?: number;
+  branchFromThought?: number;
+  branchId?: string;
+  needsMoreThoughts?: boolean;
   nextThoughtNeeded: boolean;
 }
 
@@ -114,68 +91,76 @@ class SequentialThinkingStore {
   }
 }
 
+const stores = new Map<string, SequentialThinkingStore>();
+
+function resolveStoreKey(context?: TurnContext): string {
+  const sessionId = context?.turnRequest?.sessionId;
+  if (typeof sessionId === "string" && sessionId.length > 0) return `session:${sessionId}`;
+  const callId = context?.toolCall?.callId;
+  if (typeof callId === "string" && callId.length > 0) return `call:${callId}`;
+  return "default";
+}
+
 function shouldReset(input: ThoughtData): boolean {
   return (
     input.thoughtNumber === 1 &&
     input.isRevision !== true &&
-    input.revisesThought == null &&
-    input.branchFromThought == null
+    input.revisesThought === undefined &&
+    input.branchFromThought === undefined
   );
 }
 
-let currentStore: SequentialThinkingStore | undefined;
-
-function getStore(input: ThoughtData): SequentialThinkingStore {
-  if (shouldReset(input) || !currentStore) {
-    currentStore = new SequentialThinkingStore();
+function getStore(input: ThoughtData, context?: TurnContext): SequentialThinkingStore {
+  const key = resolveStoreKey(context);
+  if (shouldReset(input) || !stores.has(key)) {
+    const store = new SequentialThinkingStore();
+    stores.set(key, store);
+    return store;
   }
-  return currentStore;
+  return stores.get(key)!;
 }
 
-const exa = hasExaApiKey ? new Exa() : null;
-
-export const ToolHandlersLive = AllToolsToolkit.toLayer({
-  webSearch: (params) =>
-    exa && config.webSearch
-      ? wrapExaCall("search", () =>
-          exa.search(params.query, {
-            numResults: params.numResults ?? undefined,
-            contents: { highlights: true },
-          }),
-        ).pipe(
-          Effect.map((r) =>
-            r.results.map((entry) => ({
-              title: entry.title ?? "",
-              url: entry.url,
-              highlights: entry.highlights,
-            })),
-          ),
-        )
-      : Effect.succeed([]),
-
-  crawlPages: (params) =>
-    exa && config.webSearch
-      ? wrapExaCall("getContents", () =>
-          exa.getContents([...params.urls], { text: true, livecrawl: "always" }),
-        ).pipe(
-          Effect.map((r) =>
-            r.results.map((entry) => ({
-              title: entry.title ?? "",
-              url: entry.url,
-              text: entry.text ?? undefined,
-            })),
-          ),
-        )
-      : Effect.succeed([]),
-
-  sequentialThinking: (params) =>
-    config.sequentialThinking
-      ? Effect.succeed(getStore(params).processThought(params))
-      : Effect.succeed({
-          thoughtNumber: params.thoughtNumber,
-          totalThoughts: params.totalThoughts,
-          nextThoughtNeeded: false,
-          branches: [],
-          thoughtHistoryLength: 0,
-        }),
+const sequentialThinking = tool({
+  name: "sequentialThinking",
+  description:
+    "Structured step-by-step reasoning with revisions and branches. Use liberally to break down complex questions and revisit assumptions.",
+  inputSchema: z.object({
+    thought: z.string().describe("Your current thinking step"),
+    nextThoughtNeeded: z.boolean().describe("Whether another thought step is needed"),
+    thoughtNumber: z.number().int().min(1).describe("Current thought number"),
+    totalThoughts: z.number().int().min(1).describe("Estimated total thoughts needed"),
+    isRevision: z.boolean().optional().describe("Whether this revises previous thinking"),
+    revisesThought: z
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .describe("Which thought is being reconsidered"),
+    branchFromThought: z
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .describe("Branching point thought number"),
+    branchId: z.string().optional().describe("Branch identifier"),
+    needsMoreThoughts: z.boolean().optional().describe("If more thoughts are needed"),
+  }),
+  outputSchema: z.object({
+    thoughtNumber: z.number(),
+    totalThoughts: z.number(),
+    nextThoughtNeeded: z.boolean(),
+    branches: z.array(z.string()),
+    thoughtHistoryLength: z.number(),
+  }),
+  execute: async (input, context) => getStore(input, context).processThought(input),
 });
+
+const TOOLS: { tool: Tool; isEnabled: () => boolean }[] = [
+  { tool: webSearch, isEnabled: () => Boolean(exa) && config.webSearch },
+  { tool: crawlPages, isEnabled: () => Boolean(exa) && config.webSearch },
+  { tool: sequentialThinking, isEnabled: () => config.sequentialThinking },
+];
+
+export function getEnabledTools() {
+  return TOOLS.filter((t) => t.isEnabled()).map((t) => t.tool);
+}
