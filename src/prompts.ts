@@ -4,8 +4,6 @@ const DIVERSITY = `Think independently. Don't default to the safest or most conv
 If you see a non-obvious angle or contrarian insight, include it — even if it goes against common wisdom.`;
 
 const TOOL_POLICY = `\n\nTool policy:
-- Use sequentialThinking liberally — break down complex questions, revisit assumptions, and branch your reasoning before committing to an answer.
-- Use webSearch + crawlPages for anything time-sensitive, recent, or where your training data is likely outdated. Outdated information is worse than no information — when in doubt, search.
 - Keep tool usage efficient: do at most 10 tool calls for a single user request.
 - If you already know the answer confidently and it is not time-sensitive, answer directly.`;
 
