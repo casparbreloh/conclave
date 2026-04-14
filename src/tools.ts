@@ -18,11 +18,13 @@ function wrapExaCall<T>(method: string, fn: () => Promise<T>): Effect.Effect<T, 
   });
 }
 
+const NumberLike = Schema.Union([Schema.Number, Schema.NumberFromString]);
+
 export const WebSearch = Tool.make("webSearch", {
   description: "Search the web for current information, news, or facts.",
   parameters: Schema.Struct({
     query: Schema.String,
-    numResults: Schema.optionalKey(Schema.NullOr(Schema.Number)),
+    numResults: Schema.optionalKey(Schema.NullOr(NumberLike)),
   }),
   success: Schema.Array(
     Schema.Struct({
@@ -52,11 +54,11 @@ export const SequentialThinking = Tool.make("sequentialThinking", {
   parameters: Schema.Struct({
     thought: Schema.String,
     nextThoughtNeeded: Schema.Boolean,
-    thoughtNumber: Schema.Number,
-    totalThoughts: Schema.Number,
+    thoughtNumber: NumberLike,
+    totalThoughts: NumberLike,
     isRevision: Schema.optionalKey(Schema.NullOr(Schema.Boolean)),
-    revisesThought: Schema.optionalKey(Schema.NullOr(Schema.Number)),
-    branchFromThought: Schema.optionalKey(Schema.NullOr(Schema.Number)),
+    revisesThought: Schema.optionalKey(Schema.NullOr(NumberLike)),
+    branchFromThought: Schema.optionalKey(Schema.NullOr(NumberLike)),
     branchId: Schema.optionalKey(Schema.NullOr(Schema.String)),
     needsMoreThoughts: Schema.optionalKey(Schema.NullOr(Schema.Boolean)),
   }),
