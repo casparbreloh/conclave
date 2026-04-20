@@ -1,20 +1,11 @@
 {
-  "models": ["google/gemini-3.1-pro-preview", "openai/gpt-5.4", "anthropic/claude-opus-4.6"],
+  "models": [
+    "google/gemini-3.1-pro-preview",
+    "openai/gpt-5.4",
+    "anthropic/claude-opus-4.6",
+    "x-ai/grok-4.20"
+  ],
   "chairmanModel": "anthropic/claude-opus-4.6",
   "sequentialThinking": true,
-  "webSearch": true,
-  "lenses": [
-    {
-      "name": "Blind spots",
-      "prompt": "what is being overlooked? what assumption, if wrong, changes everything?"
-    },
-    {
-      "name": "Structure",
-      "prompt": "what's the right mental model? what's the simplest decomposition? what are the real dependencies?"
-    },
-    {
-      "name": "Inversion",
-      "prompt": "what does the opposite argument look like? what would make this trivially easy? what would make it impossible?"
-    }
-  ]
+  "webSearch": true
 }

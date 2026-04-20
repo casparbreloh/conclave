@@ -20,11 +20,7 @@ export interface ConclaveCallbacks {
   onChairmanComplete: () => void;
 }
 
-export async function single(
-  modelId: string,
-  messages: Message[],
-  conclave: boolean = false,
-): Promise<string> {
+export async function single(modelId: string, messages: Message[]): Promise<string> {
   const enabledTools = getEnabledTools();
   const sessionId = crypto.randomUUID();
 
@@ -32,7 +28,7 @@ export async function single(
     const result = openrouter.callModel({
       model: modelId,
       sessionId,
-      instructions: buildAgentPrompt(conclave),
+      instructions: buildAgentPrompt(),
       input: messages,
       tools: enabledTools.length > 0 ? enabledTools : undefined,
       stopWhen: stepCountIs(MAX_AGENT_STEPS),
@@ -44,7 +40,7 @@ export async function single(
       const result = openrouter.callModel({
         model: modelId,
         sessionId: crypto.randomUUID(),
-        instructions: buildAgentPrompt(conclave),
+        instructions: buildAgentPrompt(),
         input: messages,
       });
       return await result.getText();
@@ -56,7 +52,7 @@ export async function single(
 export async function conclave(messages: Message[], callbacks: ConclaveCallbacks): Promise<string> {
   const results = await Promise.allSettled(
     config.models.map(async (modelId) => {
-      const text = await single(modelId, messages, true);
+      const text = await single(modelId, messages);
       callbacks.onModelComplete(modelId);
       return { modelId, text };
     }),
