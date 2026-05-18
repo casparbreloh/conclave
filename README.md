@@ -10,7 +10,7 @@ It is built for fast, grounded answers with optional web research tools.
 3. Set keys in `.env.local`:
    - `OPENROUTER_API_KEY`
    - `EXA_API_KEY`
-4. Run: `bun run dev`
+4. Run: `bun start`
 
 ## Configuration
 
