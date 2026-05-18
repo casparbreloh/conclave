@@ -1,27 +1,72 @@
 import {
-  createCliRenderer,
-  BoxRenderable,
-  TextRenderable,
-  TextareaRenderable,
-  MarkdownRenderable,
-  ScrollBoxRenderable,
-  SyntaxStyle,
-  RGBA,
-  KeyEvent,
-} from "@opentui/core";
+  Box,
+  Container,
+  Editor,
+  Key,
+  Loader,
+  Markdown,
+  ProcessTerminal,
+  Spacer,
+  Text,
+  TUI,
+  matchesKey,
+  truncateToWidth,
+  visibleWidth,
+  type EditorTheme,
+  type MarkdownTheme,
+} from "@earendil-works/pi-tui";
+import chalk from "chalk";
 
 import { conclave, single, type Message } from "./ai";
 import { config } from "./config";
 
-const COLORS = {
-  text: "#e6edf3",
-  dim: "#8b949e",
-  dimmer: "#484f58",
-  mode: "#c9d1d9",
+const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+function fg(hex: string): (t: string) => string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return (t) => `\x1b[38;2;${r};${g};${b}m${t}\x1b[39m`;
+}
+
+const C = {
+  accent: fg("#8abeb7"),
+  muted: fg("#808080"),
+  dim: fg("#666666"),
+  error: fg("#cc6666"),
+  green: fg("#b5bd68"),
+  heading: fg("#f0c674"),
+  link: fg("#81a2be"),
+  userBg: (t: string) => `\x1b[48;2;52;53;65m${t}\x1b[49m`,
 };
 
-const MSG_PADDING = { paddingLeft: 2, paddingRight: 3 };
-const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+const markdownTheme: MarkdownTheme = {
+  heading: C.heading,
+  bold: (t) => chalk.bold(t),
+  italic: (t) => chalk.italic(t),
+  listBullet: C.accent,
+  quote: (t) => C.muted(chalk.italic(t)),
+  quoteBorder: C.muted,
+  link: (t) => C.link(chalk.underline(t)),
+  linkUrl: C.dim,
+  code: C.accent,
+  codeBlock: C.green,
+  codeBlockBorder: C.muted,
+  hr: C.muted,
+  strikethrough: (t) => chalk.strikethrough(t),
+  underline: (t) => chalk.underline(t),
+};
+
+const editorTheme: EditorTheme = {
+  borderColor: C.dim,
+  selectList: {
+    selectedPrefix: C.accent,
+    selectedText: C.accent,
+    description: C.muted,
+    scrollInfo: C.muted,
+    noMatch: C.muted,
+  },
+};
 
 function formatModelName(modelId: string): string {
   const slash = modelId.indexOf("/");
@@ -31,390 +76,225 @@ function formatModelName(modelId: string): string {
   return `${provider.charAt(0).toUpperCase()}${provider.slice(1)} - ${model}`;
 }
 
-const markdownStyle = SyntaxStyle.fromStyles({
-  "markup.heading": { fg: RGBA.fromHex(COLORS.text), bold: true },
-  "markup.bold": { fg: RGBA.fromHex(COLORS.text), bold: true },
-  "markup.italic": { fg: RGBA.fromHex(COLORS.text), italic: true },
-  "markup.list": { fg: RGBA.fromHex(COLORS.dim) },
-  "markup.quote": { fg: RGBA.fromHex(COLORS.dim), italic: true },
-  "markup.link": { fg: RGBA.fromHex(COLORS.dim), underline: true },
-  "markup.raw": { fg: RGBA.fromHex(COLORS.text) },
-  default: { fg: RGBA.fromHex(COLORS.text) },
-});
+class BorderedBox extends Container {
+  constructor(private title: string) {
+    super();
+  }
 
-let msgId = 0;
-function nextId(prefix: string) {
-  return `${prefix}-${++msgId}`;
+  render(width: number): string[] {
+    const inner = Math.max(1, width - 2);
+    const childLines = super.render(inner);
+    const maxTitle = Math.max(0, inner - 3);
+    const title = maxTitle > 0 ? truncateToWidth(` ${this.title} `, maxTitle) : "";
+    const titleVis = visibleWidth(title);
+    const top = C.dim(
+      titleVis > 0 ? `╭─${title}${"─".repeat(inner - 1 - titleVis)}╮` : `╭${"─".repeat(inner)}╮`,
+    );
+    const bottom = C.dim(`╰${"─".repeat(inner)}╯`);
+    const middle = childLines.map(
+      (line) =>
+        C.dim("│") + line + " ".repeat(Math.max(0, inner - visibleWidth(line))) + C.dim("│"),
+    );
+    return ["", top, ...middle, bottom];
+  }
 }
 
-async function main() {
-  const activeIntervals = new Set<ReturnType<typeof setInterval>>();
-  let liveRequested = false;
+class StatusLine extends Text {
+  private intervalId: NodeJS.Timeout | null = null;
+  private frame = 0;
 
-  function clearTrackedInterval(interval: ReturnType<typeof setInterval>) {
-    clearInterval(interval);
-    activeIntervals.delete(interval);
+  constructor(
+    private ui: TUI,
+    private label: string,
+  ) {
+    super("", 0, 0);
   }
 
-  function cleanupLiveAndIntervals() {
-    for (const interval of activeIntervals) {
-      clearInterval(interval);
-    }
-    activeIntervals.clear();
-
-    if (liveRequested && !renderer.isDestroyed) {
-      renderer.dropLive();
-    }
-    liveRequested = false;
+  start(): void {
+    this.tick();
+    this.intervalId = setInterval(() => {
+      this.frame = (this.frame + 1) % SPINNER.length;
+      this.tick();
+    }, 80);
   }
 
-  const renderer = await createCliRenderer({
-    exitOnCtrlC: true,
-    screenMode: "alternate-screen",
-    useMouse: true,
-    useKittyKeyboard: {},
-    onDestroy: cleanupLiveAndIntervals,
-  });
+  finish(symbol: string, color: (s: string) => string = C.muted): void {
+    this.stop();
+    this.setText(`  ${color(this.label)} ${color(symbol)}`);
+    this.ui.requestRender();
+  }
 
-  function copyToClipboard(text: string) {
-    if (process.platform === "darwin") {
-      try {
-        const proc = Bun.spawn(["pbcopy"], { stdin: "pipe" });
-        void proc.stdin.write(text);
-        void proc.stdin.end();
-      } catch {
-        renderer.copyToClipboardOSC52(text);
-      }
-    } else {
-      renderer.copyToClipboardOSC52(text);
+  setIdle(): void {
+    this.stop();
+    this.setText(`  ${C.dim(this.label)}`);
+    this.ui.requestRender();
+  }
+
+  stop(): void {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
     }
   }
 
-  // eslint-disable-next-line -- EventEmitter.on inherited but not resolved by oxlint
-  (renderer.keyInput as unknown as import("events").EventEmitter).on(
-    "keypress",
-    (key: KeyEvent) => {
-      if (key.name !== "c") return;
-      const isCopyShortcut = process.platform === "darwin" ? key.super : key.ctrl;
-      if (!isCopyShortcut) return;
+  private tick(): void {
+    this.setText(`  ${C.muted(this.label)} ${C.accent(SPINNER[this.frame]!)}`);
+    this.ui.requestRender();
+  }
+}
 
-      const selection = renderer.getSelection();
-      const text = selection?.getSelectedText();
-      if (!text) return;
+function main() {
+  const terminal = new ProcessTerminal();
+  const tui = new TUI(terminal);
 
-      key.preventDefault();
-      key.stopPropagation();
-      copyToClipboard(text);
-    },
-  );
-
-  let modeIndex = 0;
-  let singleModelIndex = 0;
+  let conclaveMode = true;
+  let modelIndex = 0;
   let processing = false;
   const history: Message[] = [];
 
-  const root = new BoxRenderable(renderer, {
-    id: "root",
-    flexDirection: "column",
-    width: renderer.width,
-    height: renderer.height,
-    paddingY: 1,
-  });
+  const editor = new Editor(tui, editorTheme);
+  const statusBar = new Text("", 0, 0);
 
-  const scrollBox = new ScrollBoxRenderable(renderer, {
-    id: "scroll",
-    flexGrow: 1,
-    stickyScroll: true,
-    stickyStart: "bottom",
-    contentOptions: { flexDirection: "column", gap: 1 },
-  });
-
-  scrollBox.content.minHeight = "100%" as never;
-  scrollBox.verticalScrollBar.visible = false;
-  scrollBox.horizontalScrollBar.visible = false;
-
-  renderer.on("resize", (w: number, h: number) => {
-    root.width = w;
-    root.height = h;
-  });
-
-  const spacer = new BoxRenderable(renderer, { id: "spacer", flexGrow: 1 });
-
-  const inputGroup = new BoxRenderable(renderer, {
-    id: "input-group",
-    flexDirection: "column",
-    flexShrink: 0,
-    paddingX: 1,
-  });
-
-  const inputBox = new BoxRenderable(renderer, {
-    id: "input-box",
-    border: true,
-    borderStyle: "rounded",
-    borderColor: COLORS.dimmer,
-    flexShrink: 0,
-    paddingX: 1,
-  });
-
-  const textarea = new TextareaRenderable(renderer, {
-    id: "textarea",
-    placeholder: "Ask a question",
-    textColor: COLORS.text,
-    minHeight: 1,
-    maxHeight: 6,
-    keyBindings: [
-      { name: "return", action: "submit" },
-      { name: "linefeed", action: "submit" },
-    ],
-    onSubmit: () => void handleSubmit(),
-    onKeyDown: (key) => {
-      if (key.name !== "tab") return;
-
-      key.preventDefault();
-      key.stopPropagation();
-
-      if (key.shift) {
-        modeIndex = modeIndex === 0 ? 1 : 0;
-        updateStatusBar();
-        return;
-      }
-
-      if (modeIndex === 1) {
-        singleModelIndex = (singleModelIndex + 1) % config.models.length;
-        updateStatusBar();
-      }
-    },
-  });
-
-  const statusBar = new BoxRenderable(renderer, {
-    id: "status-bar",
-    flexDirection: "row",
-    paddingLeft: 2,
-  });
-
-  const modeName = new TextRenderable(renderer, { id: "mode-name", content: "", fg: COLORS.mode });
-  const modeSwitch = new TextRenderable(renderer, {
-    id: "mode-switch",
-    content: "",
-    fg: COLORS.dimmer,
-  });
-  const modelInfo = new TextRenderable(renderer, { id: "model-info", content: "", fg: COLORS.dim });
-  const modelCycle = new TextRenderable(renderer, {
-    id: "model-cycle",
-    content: "",
-    fg: COLORS.dimmer,
-  });
-
-  statusBar.add(modeName);
-  statusBar.add(modeSwitch);
-  statusBar.add(modelInfo);
-  statusBar.add(modelCycle);
-  updateStatusBar();
-
-  inputBox.add(textarea);
-  inputGroup.add(inputBox);
-  inputGroup.add(statusBar);
-  scrollBox.add(spacer);
-  scrollBox.add(inputGroup);
-  root.add(scrollBox);
-  renderer.root.add(root);
-  textarea.focus();
+  const banner = new Text(
+    [
+      chalk.bold(C.accent("Conclave")),
+      C.muted("tab cycle model · shift+tab switch mode · ctrl+c exit"),
+    ].join("\n"),
+    1,
+    0,
+  );
 
   function updateStatusBar() {
-    modeSwitch.content = " (shift+tab to switch)";
-
-    if (modeIndex === 0) {
-      modeName.content = "Conclave";
-      modelInfo.content = "";
-      modelCycle.content = "";
+    if (conclaveMode) {
+      statusBar.setText(`  ${C.accent("Conclave")}${C.dim(" (shift+tab to switch)")}`);
     } else {
-      modeName.content = "Single";
-      modelInfo.content = ` · ${formatModelName(config.models[singleModelIndex]!)}`;
-      modelCycle.content = " (tab to cycle)";
+      const model = config.models[modelIndex]!;
+      statusBar.setText(
+        `  ${C.accent("Single")}${C.muted(` · ${formatModelName(model)}`)}${C.dim(" (tab to cycle)")}`,
+      );
     }
+    tui.requestRender();
   }
 
-  function currentMode(): string {
-    if (modeIndex === 0) return "conclave";
-    return config.models[singleModelIndex]!;
-  }
+  const chat = new Container();
+  const status = new Container();
 
-  function addMessage(renderable: BoxRenderable | TextRenderable | MarkdownRenderable) {
-    scrollBox.insertBefore(renderable, spacer);
-  }
+  tui.addChild(new Spacer(1));
+  tui.addChild(banner);
+  tui.addChild(new Spacer(1));
+  tui.addChild(chat);
+  tui.addChild(status);
+  tui.addChild(new Spacer(1));
+  tui.addChild(editor);
+  tui.addChild(statusBar);
+  updateStatusBar();
+  tui.setFocus(editor);
 
-  function animateSpinner(
-    text: TextRenderable,
-    label: string,
-    prefix = "",
-  ): ReturnType<typeof setInterval> {
-    let frame = 0;
-    const interval = setInterval(() => {
-      frame = (frame + 1) % SPINNER.length;
-      text.content = `${prefix}${label} ${SPINNER[frame]}`;
-    }, 80);
-    activeIntervals.add(interval);
-    return interval;
-  }
+  tui.addInputListener((data) => {
+    if (matchesKey(data, Key.ctrl("c"))) {
+      tui.stop();
+      process.exit(0);
+    }
+    if (processing) return undefined;
+    if (matchesKey(data, Key.shift("tab"))) {
+      conclaveMode = !conclaveMode;
+      updateStatusBar();
+      return { consume: true };
+    }
+    if (matchesKey(data, Key.tab) && !conclaveMode) {
+      modelIndex = (modelIndex + 1) % config.models.length;
+      updateStatusBar();
+      return { consume: true };
+    }
+    return undefined;
+  });
 
-  async function handleSubmit() {
+  editor.onSubmit = (value: string) => void handleSubmit(value);
+
+  async function handleSubmit(value: string) {
     if (processing) return;
-
-    const question = textarea.plainText.trim();
+    const question = value.trim();
     if (!question) return;
 
-    textarea.setText("");
-
+    editor.setText("");
     processing = true;
+    editor.disableSubmit = true;
     history.push({ role: "user", content: question });
 
-    const userMsg = new BoxRenderable(renderer, { id: nextId("q"), ...MSG_PADDING });
-    userMsg.add(
-      new TextRenderable(renderer, {
-        id: nextId("qt"),
-        content: `> ${question}`,
-        fg: COLORS.dim,
-      }),
-    );
-    addMessage(userMsg);
-
-    const responseBox = new BoxRenderable(renderer, {
-      id: nextId("rb"),
-      flexDirection: "column",
-      ...MSG_PADDING,
-    });
-
-    const mode = currentMode();
-    const thinkingLabel = mode === "conclave" ? "Thinking" : formatModelName(mode);
-    const thinkingText = new TextRenderable(renderer, {
-      id: nextId("think"),
-      content: `${thinkingLabel} ${SPINNER[0]}`,
-      fg: COLORS.dim,
-    });
-
-    responseBox.add(thinkingText);
-    addMessage(responseBox);
-
-    const spinnerAnim = animateSpinner(thinkingText, thinkingLabel);
-    renderer.requestLive();
-    liveRequested = true;
+    const userBox = new Box(1, 1, C.userBg);
+    userBox.addChild(new Markdown(question, 0, 0, markdownTheme));
+    chat.addChild(userBox);
+    tui.requestRender();
 
     try {
-      let answer: string;
-
-      if (mode === "conclave") {
-        answer = await handleConclave(responseBox, thinkingText, spinnerAnim);
-      } else {
-        answer = await single(mode, history);
-        clearTrackedInterval(spinnerAnim);
-      }
-
+      const answer = conclaveMode
+        ? await runConclave()
+        : await runSingle(config.models[modelIndex]!);
       history.push({ role: "assistant", content: answer });
-      responseBox.remove(thinkingText.id);
-      responseBox.add(
-        new MarkdownRenderable(renderer, {
-          id: nextId("a"),
-          content: answer,
-          syntaxStyle: markdownStyle,
-          conceal: true,
-        }),
-      );
+      chat.addChild(wrapBlock(new Markdown(answer, 1, 0, markdownTheme)));
     } catch (error) {
-      clearTrackedInterval(spinnerAnim);
-      responseBox.remove(thinkingText.id);
-      responseBox.add(
-        new TextRenderable(renderer, {
-          id: nextId("err"),
-          content: `error: ${error instanceof Error ? error.message : String(error)}`,
-          fg: "#f85149",
-        }),
-      );
+      const msg = error instanceof Error ? error.message : String(error);
+      chat.addChild(wrapBlock(new Text(C.error(`error: ${msg}`), 1, 0)));
     } finally {
-      cleanupLiveAndIntervals();
       processing = false;
-      textarea.focus();
+      editor.disableSubmit = false;
+      tui.requestRender();
     }
   }
 
-  async function handleConclave(
-    responseBox: BoxRenderable,
-    thinkingText: TextRenderable,
-    dotsAnim: ReturnType<typeof setInterval>,
-  ): Promise<string> {
-    clearTrackedInterval(dotsAnim);
-    responseBox.remove(thinkingText.id);
+  function wrapBlock(inner: Text | Markdown): Container {
+    const c = new Container();
+    c.addChild(new Spacer(1));
+    c.addChild(inner);
+    return c;
+  }
 
-    const deliberationBox = new BoxRenderable(renderer, {
-      id: nextId("delib"),
-      border: true,
-      borderStyle: "rounded",
-      borderColor: COLORS.dimmer,
-      title: "Conclave",
-      titleAlignment: "left",
-      flexDirection: "column",
-    });
-
-    const statusMap = new Map<string, TextRenderable>();
-    const animMap = new Map<string, ReturnType<typeof setInterval>>();
-
-    for (const modelId of config.models) {
-      const label = formatModelName(modelId);
-      const t = new TextRenderable(renderer, {
-        id: nextId("ms"),
-        content: `  ${label} ${SPINNER[0]}`,
-        fg: COLORS.dim,
-      });
-      statusMap.set(modelId, t);
-      animMap.set(modelId, animateSpinner(t, label, "  "));
-      deliberationBox.add(t);
+  async function runSingle(modelId: string): Promise<string> {
+    const loader = new Loader(tui, C.accent, C.muted, formatModelName(modelId));
+    status.clear();
+    status.addChild(loader);
+    loader.start();
+    try {
+      return await single(modelId, history);
+    } finally {
+      loader.stop();
+      status.clear();
+      tui.requestRender();
     }
+  }
 
-    const chairmanLabel = "Chairman";
-    const chairmanStatus = new TextRenderable(renderer, {
-      id: nextId("cs"),
-      content: `  ${chairmanLabel}`,
-      fg: COLORS.dimmer,
-    });
-    deliberationBox.add(chairmanStatus);
-    responseBox.add(deliberationBox);
+  async function runConclave(): Promise<string> {
+    const box = new BorderedBox("Conclave");
+    const lines = new Map<string, StatusLine>();
+    for (const modelId of config.models) {
+      const line = new StatusLine(tui, formatModelName(modelId));
+      lines.set(modelId, line);
+      box.addChild(line);
+      line.start();
+    }
+    const chairman = new StatusLine(tui, "Chairman");
+    chairman.setIdle();
+    box.addChild(chairman);
+    status.clear();
+    status.addChild(box);
+    tui.requestRender();
 
     try {
       return await conclave(history, {
-        onModelComplete: (modelId) => {
-          const anim = animMap.get(modelId);
-          if (anim) clearTrackedInterval(anim);
-          const t = statusMap.get(modelId);
-          if (t) {
-            t.content = `  ${formatModelName(modelId)} ✓`;
-            t.fg = COLORS.dim;
-          }
-        },
-        onModelError: (modelId, _error) => {
-          const anim = animMap.get(modelId);
-          if (anim) clearTrackedInterval(anim);
-          const t = statusMap.get(modelId);
-          if (t) {
-            t.content = `  ${formatModelName(modelId)} ✗`;
-            t.fg = "#f85149";
-          }
-        },
-        onChairmanStart: () => {
-          chairmanStatus.fg = COLORS.dim;
-          animMap.set("chairman", animateSpinner(chairmanStatus, chairmanLabel, "  "));
-        },
-        onChairmanComplete: () => {
-          const anim = animMap.get("chairman");
-          if (anim) clearTrackedInterval(anim);
-          chairmanStatus.content = `  ${chairmanLabel} ✓`;
-          chairmanStatus.fg = COLORS.dim;
-        },
+        onModelComplete: (id) => lines.get(id)?.finish("✓", C.green),
+        onModelError: (id) => lines.get(id)?.finish("✗", C.error),
+        onChairmanStart: () => chairman.start(),
+        onChairmanComplete: () => chairman.finish("✓", C.green),
       });
     } finally {
-      for (const anim of animMap.values()) {
-        clearTrackedInterval(anim);
-      }
+      for (const line of lines.values()) line.stop();
+      chairman.stop();
+      status.clear();
+      tui.requestRender();
     }
   }
+
+  tui.start();
 }
 
 main();
